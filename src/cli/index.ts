@@ -26,30 +26,41 @@ function main(): void {
     return;
   }
 
+  const subArgs = args.slice(1);
+  const wantsHelp = subArgs.includes('--help') || subArgs.includes('-h');
+
   switch (command) {
     case 'build':
-      handleBuild(args.slice(1));
+      if (wantsHelp) { printBuildHelp(); return; }
+      handleBuild(subArgs);
       break;
     case 'check':
+      if (wantsHelp) { printCommandHelp('check', 'Run type checking only (no emit).'); return; }
       handleCheck();
       break;
     case 'info':
+      if (wantsHelp) { printCommandHelp('info', 'Display resolved build plan: packages, dependency order, and targets.'); return; }
       info();
       break;
     case 'init':
+      if (wantsHelp) { printCommandHelp('init', 'Generate ts-forge.config.json by detecting existing project structure.\nSafe to re-run — merges new targets without overwriting existing config.'); return; }
       init();
       break;
     case 'sync':
+      if (wantsHelp) { printCommandHelp('sync', 'Generate main, types, and exports fields in each package\'s package.json\nfrom target configuration. Preserves all other fields.'); return; }
       handleSync();
       break;
     case 'validate':
+      if (wantsHelp) { printValidateHelp(); return; }
       handleValidate();
       break;
     case 'gh-action':
+      if (wantsHelp) { printCommandHelp('gh-action', 'Generate .github/workflows/tsf.yml with auto-detected package manager\nand Node.js version matrix.'); return; }
       generateGitHubAction();
       break;
     case 'version':
-      handleVersion(args.slice(1));
+      if (wantsHelp) { printVersionHelp(); return; }
+      handleVersion(subArgs);
       break;
     default:
       logger.error(`Unknown command: ${command}`);
@@ -141,6 +152,67 @@ function parseBuildOptions(args: string[]): BuildOptions {
   }
 
   return options;
+}
+
+function printCommandHelp(command: string, description: string): void {
+  console.log(`\nts-forge ${command}\n\n${description}\n`);
+}
+
+function printBuildHelp(): void {
+  console.log(`
+ts-forge build — Build targets across all packages in dependency order.
+
+Usage:
+  ts-forge build [options]
+
+Options:
+  --target <name>       Build specific target(s), comma-separated
+  --condition <name>    Build targets matching condition
+  --all                 Build all targets (default: unconditional only)
+  --check               Enable type checking before build
+  --no-check            Skip type checking
+  --clean               Remove output dirs before build
+  --verbose             Show detailed output
+  --watch               Watch mode — rebuild on file changes
+  --parallel <n>        Max parallel builds (default: CPU count)
+  --sync-package-json   Update package.json fields after build
+`.trim());
+}
+
+function printVersionHelp(): void {
+  console.log(`
+ts-forge version — Set or bump version in package.json for workspace packages.
+
+Usage:
+  ts-forge version <version> [options]
+  ts-forge version --bump <level> [options]
+
+Options:
+  <version>             Explicit version string (e.g., 0.9.64-beta)
+  --bump <level>        Semver increment: major, minor, patch, prerelease
+  --preid <tag>         Prerelease identifier (default: beta)
+  --condition <name>    Only packages matching target condition (e.g., publish)
+  --filter <name>       Restrict to specific package(s), repeatable
+  --dry-run             Show changes without writing
+
+Examples:
+  ts-forge version 0.9.64-beta --condition publish
+  ts-forge version --bump patch
+  ts-forge version --bump prerelease --preid beta --dry-run
+`.trim());
+}
+
+function printValidateHelp(): void {
+  console.log(`
+ts-forge validate — Verify build outputs.
+
+Checks:
+  - Entry points declared in package.json exist on disk
+  - Declaration files (.d.ts) exist alongside JavaScript files
+  - No workspace specifiers leaked into non-preserve output
+
+Exit code 1 if any errors found.
+`.trim());
 }
 
 function printHelp(): void {

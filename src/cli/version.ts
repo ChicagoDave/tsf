@@ -1,4 +1,4 @@
-import { loadBuildContextPublic } from '../orchestrator';
+import { loadBuildContextPublic, shouldSkipTarget } from '../orchestrator';
 import * as logger from '../utils/logger';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -8,6 +8,7 @@ interface VersionOptions {
   bump?: 'major' | 'minor' | 'patch' | 'prerelease';
   preid: string;
   filter: string[];
+  condition?: string;
   dryRun: boolean;
 }
 
@@ -27,9 +28,16 @@ export function handleVersion(args: string[]): void {
   const ctx = loadBuildContextPublic();
   if (!ctx) return;
 
-  const packages = [...ctx.packages.values()].filter(
-    (pkg) => options.filter.length === 0 || options.filter.includes(pkg.name),
-  );
+  let packages = [...ctx.packages.values()];
+
+  if (options.filter.length > 0) {
+    packages = packages.filter((pkg) => options.filter.includes(pkg.name));
+  }
+
+  if (options.condition) {
+    const conditionTargets = ctx.targets.filter((t) => t.config.condition === options.condition);
+    packages = packages.filter((pkg) => conditionTargets.some((t) => !shouldSkipTarget(pkg, t)));
+  }
 
   if (packages.length === 0) {
     logger.error('No packages matched the filter');
@@ -123,6 +131,9 @@ function parseVersionOptions(args: string[]): VersionOptions {
         break;
       case '--filter':
         options.filter.push(args[++i]);
+        break;
+      case '--condition':
+        options.condition = args[++i];
         break;
       case '--dry-run':
         options.dryRun = true;

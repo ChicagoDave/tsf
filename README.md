@@ -28,6 +28,7 @@ npm install -D tsf
 tsf init          # Generate ts-forge.config.json from existing project
 tsf build         # Build default target
 tsf build --all   # Build all targets
+tsf version 1.0.0 --condition publish  # Set version on npm packages
 tsf info          # Show resolved build plan
 ```
 
@@ -135,6 +136,28 @@ Verify build outputs:
 - No workspace specifiers (`@scope/pkg`) leaked into non-preserve output
 
 Exit code 1 if any errors found.
+
+### `tsf version <version> | --bump <level> [options]`
+
+Set or bump `version` in `package.json` for workspace packages.
+
+```bash
+tsf version 0.9.64-beta                     # Set all packages to explicit version
+tsf version 0.9.64-beta --condition publish  # Only npm-published packages
+tsf version --bump patch                     # Increment patch version
+tsf version --bump prerelease --preid beta   # Bump prerelease suffix
+tsf version 0.9.64-beta --filter @scope/pkg  # Specific package(s)
+tsf version 0.9.64-beta --dry-run           # Preview without writing
+```
+
+| Option | Description |
+|---|---|
+| `<version>` | Explicit version string (mutually exclusive with `--bump`) |
+| `--bump <level>` | Semver increment: `major`, `minor`, `patch`, `prerelease` |
+| `--preid <tag>` | Prerelease identifier (default: `beta`) |
+| `--condition <name>` | Only packages matching target condition (e.g., `publish`) |
+| `--filter <name>` | Restrict to specific package(s), repeatable |
+| `--dry-run` | Show changes without writing |
 
 ### `tsf gh-action`
 

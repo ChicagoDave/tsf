@@ -110,10 +110,25 @@ tsf gh-action
 
 Creates `.github/workflows/tsf.yml` with pnpm setup and Node 18/20/22 matrix.
 
+## Step 7: Version packages for publish
+
+```bash
+# Set all npm-published packages to a specific version
+tsf version 0.9.64-beta --condition publish
+
+# Preview first with --dry-run
+tsf version 0.9.64-beta --condition publish --dry-run
+
+# Bump patch version on published packages
+tsf version --bump patch --condition publish
+```
+
+The `--condition publish` flag restricts versioning to packages that have `publishConfig` in their `package.json` — the same scoping used by `tsf build --condition publish`.
+
 ## Full pipeline (one-shot)
 
 ```bash
-tsf build --all --sync-package-json && tsf validate
+tsf version 0.9.64-beta --condition publish && tsf build --all --sync-package-json && tsf validate
 ```
 
 ## Cleanup
