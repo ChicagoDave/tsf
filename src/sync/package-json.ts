@@ -66,7 +66,14 @@ export function generateFields(
   let declTarget: ResolvedTarget | undefined;
   let binTarget: ResolvedTarget | undefined;
 
-  for (const t of targets) {
+  // Sort targets so publish-conditioned targets are preferred (checked first)
+  const sorted = [...targets].sort((a, b) => {
+    const aPublish = a.config.condition === 'publish' ? 0 : 1;
+    const bPublish = b.config.condition === 'publish' ? 0 : 1;
+    return aPublish - bPublish;
+  });
+
+  for (const t of sorted) {
     const cfg = t.config;
 
     // Identify CJS target
@@ -125,10 +132,11 @@ export function generateFields(
     // Also add targets with explicit conditions
     const exports: Record<string, ExportsConditions | string> = { '.': conditions };
 
+    // Add custom Node.js export conditions (skip TSF-internal conditions like "publish")
+    const tsfConditions = new Set(['publish']);
     for (const t of targets) {
-      if (t.config.condition && t.config.outDir) {
+      if (t.config.condition && t.config.outDir && !tsfConditions.has(t.config.condition)) {
         const condPath = './' + path.join(t.config.outDir, entryBase);
-        // Custom conditions go under the "." export
         (exports['.'] as ExportsConditions)[t.config.condition as keyof ExportsConditions] = condPath;
       }
     }

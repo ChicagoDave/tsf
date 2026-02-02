@@ -97,20 +97,43 @@ function detectProjects(
   const { globSync } = require('glob');
 
   if (isWorkspace && packageGlobs && packageGlobs.length > 0) {
-    // For workspaces, use the workspace globs with /tsconfig.json appended
-    const projects: string[] = [];
+    // Separate inclusion globs from negation (exclusion) patterns
+    const includeGlobs: string[] = [];
+    const excludeGlobs: string[] = [];
+
     for (const glob of packageGlobs) {
-      const pattern = glob.replace(/\/?\*?$/, '') + '/*/tsconfig.json';
+      if (glob.startsWith('!')) {
+        // Convert negation to an ignore pattern: !packages/forge → packages/forge/**/tsconfig.json
+        const excluded = glob.slice(1);
+        excludeGlobs.push(excluded + '/tsconfig.json');
+        excludeGlobs.push(excluded + '/*/tsconfig.json');
+      } else {
+        includeGlobs.push(glob);
+      }
+    }
+
+    // For each inclusion glob, find tsconfig.json files
+    const projects: string[] = [];
+    const ignore = ['node_modules/**', ...excludeGlobs];
+
+    for (const glob of includeGlobs) {
+      // If glob ends with *, it matches directories directly: packages/* → packages/*/tsconfig.json
+      // If it's a specific path: packages/platforms/* → packages/platforms/*/tsconfig.json
+      const pattern = glob.endsWith('*')
+        ? glob + '/tsconfig.json'
+        : glob + '/tsconfig.json';
+
       const found: string[] = globSync(pattern, {
         cwd: dir,
-        ignore: ['node_modules/**'],
+        ignore,
         absolute: false,
       });
       projects.push(...found);
     }
+
     if (projects.length > 0) return projects;
     // Fall back to glob patterns if no tsconfigs found yet
-    return packageGlobs.map((g) => g.replace(/\/?\*?$/, '') + '/*/tsconfig.json');
+    return includeGlobs.map((g) => g + '/tsconfig.json');
   }
 
   // Single-project: find all tsconfig files

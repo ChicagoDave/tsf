@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import type { PackageInfo, ResolvedTarget } from '../types';
+import { shouldSkipTarget } from '../orchestrator';
 import * as logger from '../utils/logger';
 
 export interface ValidationIssue {
@@ -200,7 +201,8 @@ export function runValidation(
   let hasErrors = false;
 
   for (const pkg of packages.values()) {
-    const issues = validatePackageOutputs(pkg, targets);
+    const applicableTargets = targets.filter((t) => !shouldSkipTarget(pkg, t));
+    const issues = validatePackageOutputs(pkg, applicableTargets);
     if (issues.length === 0) {
       logger.success('Outputs valid', pkg.name);
       continue;

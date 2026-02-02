@@ -69,6 +69,10 @@ export async function build(options: BuildOptions): Promise<boolean> {
     for (const pkgName of level) {
       const pkg = ctx.packages.get(pkgName)!;
       for (const target of activeTargets) {
+        if (shouldSkipTarget(pkg, target)) {
+          logger.verbose(`Skipping (not applicable)`, `${pkg.name}:${target.name}`);
+          continue;
+        }
         const override = loadPackageOverride(pkg.path);
         let targetConfig = target.config;
         if (override) {
@@ -147,12 +151,37 @@ export function info(): void {
     const cond = target.config.condition ? ` [condition: ${target.config.condition}]` : '';
     const module = target.config.module || target.config.format || 'default';
     const out = target.config.outDir || target.config.outFile || 'default';
-    console.log(`  ${target.name}: ${module} → ${out}, imports=${target.config.imports}${cond}`);
+    const applicableCount = Array.from(ctx.packages.values())
+      .filter((pkg) => !shouldSkipTarget(pkg, target)).length;
+    const countNote = applicableCount < ctx.packages.size ? ` (${applicableCount} packages)` : '';
+    console.log(`  ${target.name}: ${module} → ${out}, imports=${target.config.imports}${cond}${countNote}`);
   }
 }
 
 export function loadBuildContextPublic(): BuildContext | null {
   return loadBuildContext({});
+}
+
+/**
+ * Check if a target should be skipped for a given package.
+ * Conditioned targets (e.g. condition="publish") only apply to packages
+ * that match the condition semantics.
+ */
+export function shouldSkipTarget(pkg: PackageInfo, target: ResolvedTarget): boolean {
+  if (!target.config.condition) return false;
+
+  if (target.config.condition === 'publish') {
+    const pkgJsonPath = path.join(pkg.path, 'package.json');
+    try {
+      const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf-8'));
+      // Publish target requires publishConfig to indicate the package is published
+      if (!pkgJson.publishConfig) return true;
+    } catch {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 function loadBuildContext(options: BuildOptions): BuildContext | null {

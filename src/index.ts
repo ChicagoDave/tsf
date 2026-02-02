@@ -27,7 +27,7 @@ export { transformImports } from './transform/imports';
 export { transformDeclarations } from './transform/declarations';
 export { computeCacheKey, isCached, recordBuild, loadCacheEntry, cleanCache } from './cache';
 export { createWatcher } from './watcher';
-export { build, buildWatch, check, info, loadBuildContextPublic } from './orchestrator';
+export { build, buildWatch, check, info, loadBuildContextPublic, shouldSkipTarget } from './orchestrator';
 export { init } from './cli/init';
 export { syncPackageJson, generateFields } from './sync/package-json';
 export { validatePackageOutputs, runValidation } from './validate';

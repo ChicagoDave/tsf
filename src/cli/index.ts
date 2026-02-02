@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import type { BuildOptions } from '../types';
-import { build, buildWatch, check, info, loadBuildContextPublic } from '../orchestrator';
+import { build, buildWatch, check, info, loadBuildContextPublic, shouldSkipTarget } from '../orchestrator';
 import { init } from './init';
 import { generateGitHubAction } from './gh-action';
 import { syncPackageJson } from '../sync/package-json';
@@ -75,7 +75,8 @@ function handleSync(): void {
   if (!ctx) return;
 
   for (const pkg of ctx.packages.values()) {
-    syncPackageJson(pkg, ctx.targets);
+    const applicableTargets = ctx.targets.filter((t) => !shouldSkipTarget(pkg, t));
+    syncPackageJson(pkg, applicableTargets);
   }
 }
 
