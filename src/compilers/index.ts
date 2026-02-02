@@ -7,6 +7,13 @@ export type CompileFn = (
   workspacePackages?: Map<string, PackageInfo>,
 ) => CompileResult;
 
+export type BundleFn = (
+  pkg: PackageInfo,
+  target: ResolvedTarget,
+  rootDir: string,
+  workspacePackages?: Map<string, PackageInfo>,
+) => CompileResult | Promise<CompileResult>;
+
 /**
  * Return the appropriate compiler function based on target config.
  */
@@ -19,5 +26,19 @@ export function getCompiler(transpiler?: string): CompileFn {
     case 'tsc':
     default:
       return require('./tsc').compile;
+  }
+}
+
+/**
+ * Return the appropriate bundler function based on target config.
+ * Bundlers produce fully resolved output where workspace imports are inlined.
+ */
+export function getBundler(bundler?: string): BundleFn {
+  switch (bundler) {
+    case 'rollup':
+      return require('./rollup-bundler').bundleWithRollup;
+    case 'esbuild':
+    default:
+      return require('./esbuild-bundler').bundleWithEsbuild;
   }
 }

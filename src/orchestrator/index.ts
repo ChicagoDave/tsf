@@ -8,7 +8,7 @@ import { resolveTargets, applyPackageOverride } from '../config/defaults';
 import { detectWorkspace } from '../resolver/workspace';
 import { resolvePackages } from '../resolver/packages';
 import { getBuildOrder } from '../resolver/graph';
-import { getCompiler } from '../compilers';
+import { getCompiler, getBundler } from '../compilers';
 import { transformImports } from '../transform/imports';
 import { transformDeclarations } from '../transform/declarations';
 import { computeCacheKey, isCached, recordBuild, cleanCache } from '../cache';
@@ -254,14 +254,14 @@ interface BuildItemResult {
   cacheKey?: string;
 }
 
-function buildPackageTarget(
+async function buildPackageTarget(
   pkg: PackageInfo,
   resolvedTarget: ResolvedTarget,
   ctx: BuildContext,
   cacheDir: string,
   useCache: boolean,
   cacheKeys: Map<string, string>,
-): BuildItemResult {
+): Promise<BuildItemResult> {
   const context = `${pkg.name}:${resolvedTarget.name}`;
   const id = `${pkg.name}:${resolvedTarget.name}`;
 
@@ -281,11 +281,20 @@ function buildPackageTarget(
     }
   }
 
-  // Select compiler
-  const compile = getCompiler(resolvedTarget.config.transpiler);
+  const isBundle = resolvedTarget.config.imports === 'bundle';
 
-  logger.info(`Compiling...`, context);
-  const result = compile(pkg, resolvedTarget, ctx.rootDir, ctx.packages);
+  let result;
+  if (isBundle) {
+    // Bundle mode: bundler resolves and inlines workspace imports
+    const bundle = getBundler(resolvedTarget.config.bundler);
+    logger.info(`Bundling...`, context);
+    result = await Promise.resolve(bundle(pkg, resolvedTarget, ctx.rootDir, ctx.packages));
+  } else {
+    // Transpile mode: compile then transform imports
+    const compile = getCompiler(resolvedTarget.config.transpiler);
+    logger.info(`Compiling...`, context);
+    result = compile(pkg, resolvedTarget, ctx.rootDir, ctx.packages);
+  }
 
   if (!result.success) {
     for (const diag of result.diagnostics) {
@@ -294,9 +303,11 @@ function buildPackageTarget(
     return { id, success: false };
   }
 
-  // Transform imports
-  transformImports(pkg, resolvedTarget, ctx.packages);
-  transformDeclarations(pkg, resolvedTarget, ctx.packages);
+  // Transform imports (skip for bundle targets — bundler handles resolution)
+  if (!isBundle) {
+    transformImports(pkg, resolvedTarget, ctx.packages);
+    transformDeclarations(pkg, resolvedTarget, ctx.packages);
+  }
 
   // Record in cache
   const newKey = computeCacheKey(pkg, resolvedTarget, ctx.rootDir, depCacheKeys);
@@ -313,16 +324,15 @@ function buildPackageTarget(
 async function runWithConcurrency<T, R>(
   limit: number,
   items: T[],
-  fn: (item: T) => R,
-): Promise<R[]> {
+  fn: (item: T) => R | Promise<R>,
+): Promise<Awaited<R>[]> {
   if (items.length === 0) return [];
 
-  // For synchronous compile functions, we parallelize via Promise.all with chunking
-  const results: R[] = [];
+  const results: Awaited<R>[] = [];
   for (let i = 0; i < items.length; i += limit) {
     const chunk = items.slice(i, i + limit);
     const chunkResults = await Promise.all(
-      chunk.map((item) => Promise.resolve().then(() => fn(item))),
+      chunk.map((item) => Promise.resolve(fn(item))),
     );
     results.push(...chunkResults);
   }

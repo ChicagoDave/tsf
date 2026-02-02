@@ -547,11 +547,11 @@ Running `ts-forge init --sync-package-json` generates these fields from the conf
 11. ✅ Parallel builds within dependency level (Promise.all with configurable concurrency via `--parallel`)
 12. ✅ Watch mode (fs.watch recursive, debounced, dependency-aware rebuild)
 
-### Phase 3: Bundling
+### Phase 3: Bundling ✅
 
-13. esbuild bundler adapter (`bundle` import mode)
-14. Rollup bundler adapter (tree shaking)
-15. `outFile` support for single-file output
+13. ✅ esbuild bundler adapter (`bundle` import mode)
+14. ✅ Rollup bundler adapter (tree shaking)
+15. ✅ `outFile` support for single-file output
 
 ### Phase 4: Ecosystem
 
