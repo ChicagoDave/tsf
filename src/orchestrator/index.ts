@@ -151,48 +151,8 @@ export function info(): void {
   }
 }
 
-export function init(rootDir?: string): void {
-  const dir = rootDir || process.cwd();
-  const configPath = path.join(dir, 'ts-forge.config.json');
-
-  if (fs.existsSync(configPath)) {
-    logger.warn('ts-forge.config.json already exists');
-    return;
-  }
-
-  // Detect tsconfig files
-  const { globSync } = require('glob');
-  const tsconfigs: string[] = globSync('**/tsconfig.json', {
-    cwd: dir,
-    ignore: ['node_modules/**', '**/node_modules/**'],
-    absolute: false,
-  });
-
-  if (tsconfigs.length === 0) {
-    logger.warn('No tsconfig.json files found');
-    return;
-  }
-
-  const config: TsForgeConfig = {
-    projects: tsconfigs.length === 1 ? tsconfigs : ['packages/*/tsconfig.json'],
-    targets: {
-      local: {
-        module: 'commonjs',
-        outDir: 'dist',
-        imports: 'preserve',
-        declarations: true,
-      },
-    },
-    defaults: {
-      transpiler: 'tsc',
-      typeCheck: true,
-      sourceMap: true,
-      clean: false,
-    },
-  };
-
-  fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n', 'utf-8');
-  logger.success(`Created ${configPath}`);
+export function loadBuildContextPublic(): BuildContext | null {
+  return loadBuildContext({});
 }
 
 function loadBuildContext(options: BuildOptions): BuildContext | null {

@@ -1,7 +1,11 @@
 #!/usr/bin/env node
 
 import type { BuildOptions } from '../types';
-import { build, buildWatch, check, info, init } from '../orchestrator';
+import { build, buildWatch, check, info, loadBuildContextPublic } from '../orchestrator';
+import { init } from './init';
+import { generateGitHubAction } from './gh-action';
+import { syncPackageJson } from '../sync/package-json';
+import { runValidation } from '../validate';
 import { setVerbose } from '../utils/logger';
 import * as logger from '../utils/logger';
 
@@ -34,6 +38,15 @@ function main(): void {
     case 'init':
       init();
       break;
+    case 'sync':
+      handleSync();
+      break;
+    case 'validate':
+      handleValidate();
+      break;
+    case 'gh-action':
+      generateGitHubAction();
+      break;
     default:
       logger.error(`Unknown command: ${command}`);
       printHelp();
@@ -43,6 +56,7 @@ function main(): void {
 
 function handleBuild(args: string[]): void {
   const options = parseBuildOptions(args);
+  const doSync = args.includes('--sync-package-json');
   setVerbose(!!options.verbose);
 
   if (options.watch) {
@@ -52,7 +66,25 @@ function handleBuild(args: string[]): void {
 
   build(options).then((success) => {
     if (!success) process.exit(1);
+    if (doSync) handleSync();
   });
+}
+
+function handleSync(): void {
+  const ctx = loadBuildContextPublic();
+  if (!ctx) return;
+
+  for (const pkg of ctx.packages.values()) {
+    syncPackageJson(pkg, ctx.targets);
+  }
+}
+
+function handleValidate(): void {
+  const ctx = loadBuildContextPublic();
+  if (!ctx) return;
+
+  const valid = runValidation(ctx.packages, ctx.targets);
+  if (!valid) process.exit(1);
 }
 
 function handleCheck(): void {
@@ -95,6 +127,9 @@ function parseBuildOptions(args: string[]): BuildOptions {
         if (!isNaN(val)) options.parallel = val;
         break;
       }
+      case '--sync-package-json':
+        // Handled separately in handleBuild
+        break;
       default:
         logger.warn(`Unknown option: ${arg}`);
     }
@@ -111,6 +146,9 @@ Usage:
   ts-forge build [options]    Build targets
   ts-forge check              Run type checking only
   ts-forge init               Generate ts-forge.config.json
+  ts-forge sync               Sync package.json fields from targets
+  ts-forge validate           Validate build outputs
+  ts-forge gh-action          Generate GitHub Actions workflow
   ts-forge info               Show resolved build plan
 
 Build Options:
@@ -123,6 +161,7 @@ Build Options:
   --verbose             Show detailed output
   --watch               Watch mode — rebuild on file changes
   --parallel <n>        Max parallel builds (default: CPU count)
+  --sync-package-json   Update package.json fields after build
 
 General:
   --help, -h            Show this help

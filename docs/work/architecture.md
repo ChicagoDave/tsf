@@ -553,12 +553,12 @@ Running `ts-forge init --sync-package-json` generates these fields from the conf
 14. ✅ Rollup bundler adapter (tree shaking)
 15. ✅ `outFile` support for single-file output
 
-### Phase 4: Ecosystem
+### Phase 4: Ecosystem ✅
 
-16. `ts-forge init` auto-detection from existing configs
-17. `--sync-package-json` to update package.json fields
-18. Validation (like publint) to verify outputs are correct
-19. GitHub Action for CI integration
+16. ✅ `ts-forge init` auto-detection from existing configs
+17. ✅ `--sync-package-json` to update package.json fields
+18. ✅ Validation (like publint) to verify outputs are correct
+19. ✅ GitHub Action for CI integration
 
 ## Resolved Questions
 
