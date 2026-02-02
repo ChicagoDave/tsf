@@ -11,6 +11,7 @@ import * as logger from '../utils/logger';
 import { handleVersion } from './version';
 import { handlePublish } from './publish';
 import { handleList } from './list';
+import { handleChanged } from './changed';
 
 const VERSION = '0.1.0';
 
@@ -71,6 +72,10 @@ function main(): void {
     case 'list':
       if (wantsHelp) { printListHelp(); return; }
       handleList(subArgs);
+      break;
+    case 'changed':
+      if (wantsHelp) { printChangedHelp(); return; }
+      handleChanged(subArgs);
       break;
     default:
       logger.error(`Unknown command: ${command}`);
@@ -203,12 +208,35 @@ Options:
   --preid <tag>         Prerelease identifier (default: beta)
   --condition <name>    Only packages matching target condition (e.g., publish)
   --filter <name>       Restrict to specific package(s), repeatable
+  --changed             Only bump packages that changed since last publish
   --dry-run             Show changes without writing
 
 Examples:
   ts-forge version 0.9.64-beta --condition publish
+  ts-forge version 0.9.64-beta --changed --condition publish
   ts-forge version --bump patch
   ts-forge version --bump prerelease --preid beta --dry-run
+`.trim());
+}
+
+function printChangedHelp(): void {
+  console.log(`
+ts-forge changed — Show packages that changed since their last npm publish.
+
+Usage:
+  ts-forge changed [options]
+
+Compares each package against the npm registry. A package is "changed" if:
+  - It has never been published
+  - Its local version differs from the published version
+  - It has git changes since the version tag
+
+Options:
+  --condition <name>    Only packages matching target condition (e.g., publish)
+  --filter <name>       Restrict to specific package(s), repeatable
+
+Examples:
+  ts-forge changed --condition publish
 `.trim());
 }
 
@@ -284,6 +312,7 @@ Usage:
   ts-forge version --bump <level>  Bump version (major|minor|patch|prerelease)
   ts-forge publish            Publish packages to npm
   ts-forge list               List packages (one per line)
+  ts-forge changed            Show packages changed since last publish
   ts-forge info               Show resolved build plan
 
 Build Options:

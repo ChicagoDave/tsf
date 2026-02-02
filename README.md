@@ -75,6 +75,8 @@ tsf init          # Generate config from existing project
 tsf build         # Build default target
 tsf build --all   # Build all targets
 tsf version 1.0.0 --condition publish  # Set version on npm packages
+tsf publish                            # Publish to npm in dependency order
+tsf list --condition publish           # List npm packages
 tsf info          # Show resolved build plan
 ```
 
@@ -170,6 +172,7 @@ tsf version 0.9.64-beta --condition publish  # Only npm-published packages
 tsf version --bump patch                     # Increment patch version
 tsf version --bump prerelease --preid beta   # Bump prerelease suffix
 tsf version 0.9.64-beta --filter @scope/pkg  # Specific package(s)
+tsf version 0.9.64-beta --changed --condition publish  # Only changed packages
 tsf version 0.9.64-beta --dry-run           # Preview without writing
 ```
 
@@ -180,7 +183,54 @@ tsf version 0.9.64-beta --dry-run           # Preview without writing
 | `--preid <tag>` | Prerelease identifier (default: `beta`) |
 | `--condition <name>` | Only packages matching target condition (e.g., `publish`) |
 | `--filter <name>` | Restrict to specific package(s), repeatable |
+| `--changed` | Only bump packages that changed since last npm publish |
 | `--dry-run` | Show changes without writing |
+
+### `tsf publish [options]`
+
+Publish workspace packages to npm in dependency order. Only publishes packages that have `publishConfig` in their `package.json`. Verifies npm login before publishing.
+
+```bash
+tsf publish                          # publish all publishable packages
+tsf publish --dry-run                # preview without publishing
+tsf publish --tag beta               # publish with npm dist-tag
+tsf publish --filter @scope/pkg      # specific package(s)
+```
+
+| Option | Description |
+|---|---|
+| `--tag <tag>` | npm dist-tag (default: `latest`) |
+| `--condition <name>` | Only packages matching target condition |
+| `--filter <name>` | Restrict to specific package(s), repeatable |
+| `--dry-run` | Pass `--dry-run` to npm publish |
+
+### `tsf changed [options]`
+
+Show packages that have changed since their last npm publish. Compares each package against the npm registry — a package is "changed" if it has never been published, its local version differs, or it has git changes since the version tag.
+
+```bash
+tsf changed                        # all packages
+tsf changed --condition publish    # only npm-published packages
+```
+
+| Option | Description |
+|---|---|
+| `--condition <name>` | Only packages matching target condition |
+| `--filter <name>` | Restrict to specific package(s), repeatable |
+
+### `tsf list [options]`
+
+List workspace packages, one per line, in dependency order. Useful for scripting and verifying which packages match a condition.
+
+```bash
+tsf list                        # all packages
+tsf list --condition publish    # only npm-published packages
+```
+
+| Option | Description |
+|---|---|
+| `--condition <name>` | Only packages matching target condition |
+| `--filter <name>` | Restrict to specific package(s), repeatable |
 
 ### `tsf gh-action`
 
@@ -203,7 +253,7 @@ Targets:
 
 ## Caching
 
-tsf caches builds based on source content, target config, and dependency cache keys. Unchanged packages are skipped on subsequent builds. Use `--clean` to bypass the cache. Cache is stored in `.tsf-cache/` at the workspace root.
+tsf caches builds based on source content, package.json version, target config, and dependency cache keys. Unchanged packages are skipped on subsequent builds. Version bumps automatically invalidate the cache. Use `--clean` to bypass the cache entirely. Cache is stored in `.tsf-cache/` at the workspace root.
 
 ## Development
 

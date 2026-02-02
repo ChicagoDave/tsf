@@ -1,4 +1,5 @@
 import { loadBuildContextPublic, shouldSkipTarget } from '../orchestrator';
+import { detectChanged } from './changed';
 import * as logger from '../utils/logger';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -9,6 +10,7 @@ interface VersionOptions {
   preid: string;
   filter: string[];
   condition?: string;
+  changed: boolean;
   dryRun: boolean;
 }
 
@@ -37,6 +39,12 @@ export function handleVersion(args: string[]): void {
   if (options.condition) {
     const conditionTargets = ctx.targets.filter((t) => t.config.condition === options.condition);
     packages = packages.filter((pkg) => conditionTargets.some((t) => !shouldSkipTarget(pkg, t)));
+  }
+
+  if (options.changed) {
+    const changedPkgs = detectChanged({ condition: options.condition, filter: options.filter });
+    const changedNames = new Set(changedPkgs.map((c) => c.pkg.name));
+    packages = packages.filter((pkg) => changedNames.has(pkg.name));
   }
 
   if (packages.length === 0) {
@@ -117,6 +125,7 @@ function parseVersionOptions(args: string[]): VersionOptions {
   const options: VersionOptions = {
     preid: 'beta',
     filter: [],
+    changed: false,
     dryRun: false,
   };
 
@@ -134,6 +143,9 @@ function parseVersionOptions(args: string[]): VersionOptions {
         break;
       case '--condition':
         options.condition = args[++i];
+        break;
+      case '--changed':
+        options.changed = true;
         break;
       case '--dry-run':
         options.dryRun = true;
