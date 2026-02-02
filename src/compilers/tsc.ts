@@ -39,7 +39,25 @@ export function compile(
     declarationMap: target.config.declarationMap ?? parsedConfig.options.declarationMap ?? false,
     sourceMap: target.config.sourceMap ?? parsedConfig.options.sourceMap ?? false,
     noEmit: false,
+    composite: false,
   };
+
+  // When overriding module, ensure moduleResolution is compatible.
+  // "bundler" resolution only works with module=preserve or es2015+.
+  // If we're forcing commonjs, switch to node resolution.
+  if (moduleKind !== undefined && parsedConfig.options.moduleResolution !== undefined) {
+    const isBundlerResolution =
+      parsedConfig.options.moduleResolution === ts.ModuleResolutionKind.Bundler;
+    const isCommonJS = moduleKind === ts.ModuleKind.CommonJS;
+
+    if (isBundlerResolution && isCommonJS) {
+      overrides.moduleResolution = ts.ModuleResolutionKind.Node10;
+      logger.verbose(
+        `Switched moduleResolution from bundler to node (incompatible with commonjs)`,
+        context,
+      );
+    }
+  }
 
   // Ensure workspace packages are resolvable during compilation.
   // Keep existing paths pointing at source (for type resolution), and add
