@@ -1,0 +1,8 @@
+{
+  "name": "@test/app",
+  "version": "1.0.0",
+  "main": "dist/index.js",
+  "dependencies": {
+    "@test/core": "1.0.0"
+  }
+}

@@ -1,4 +1,4 @@
-# nsf
+# tsf
 
 Multi-target TypeScript build tool for monorepos.
 
@@ -12,19 +12,19 @@ TypeScript monorepos need different builds for different consumers:
 - **Bundling**: all imports resolved and inlined into a single file
 - **Browser**: ESM output with bundled or mapped imports
 
-No existing tool handles the full matrix. nsf does.
+No existing tool handles the full matrix. tsf does.
 
 ## Quick Start
 
 ```bash
-npx nsf init          # Generate nsf.config.json from existing tsconfig files
-npx nsf build         # Build default target
-npx nsf build --all   # Build all targets
+npx tsf init          # Generate tsf.config.json from existing tsconfig files
+npx tsf build         # Build default target
+npx tsf build --all   # Build all targets
 ```
 
 ## Configuration
 
-`nsf.config.json`:
+`tsf.config.json`:
 
 ```json
 {

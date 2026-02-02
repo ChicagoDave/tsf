@@ -1,0 +1,18 @@
+{
+  "projects": ["packages/*/tsconfig.json"],
+  "targets": {
+    "local": {
+      "module": "commonjs",
+      "outDir": "dist",
+      "imports": "preserve",
+      "declarations": true
+    },
+    "npm": {
+      "module": "commonjs",
+      "outDir": "dist-npm",
+      "imports": "relative",
+      "declarations": true,
+      "condition": "publish"
+    }
+  }
+}
