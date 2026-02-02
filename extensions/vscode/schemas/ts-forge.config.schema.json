@@ -1,0 +1,147 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ts-forge.dev/schemas/ts-forge.config.json",
+  "title": "ts-forge Configuration",
+  "description": "Root configuration for the ts-forge multi-target TypeScript build tool.",
+  "type": "object",
+  "required": ["projects"],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "projects": {
+      "type": "array",
+      "description": "Glob patterns matching tsconfig.json files to include in the build.",
+      "items": { "type": "string" },
+      "examples": [["packages/*/tsconfig.json"]]
+    },
+    "targets": {
+      "type": "object",
+      "description": "Named build targets. Each key is a target name, each value is its configuration.",
+      "additionalProperties": { "$ref": "#/definitions/target" }
+    },
+    "defaults": {
+      "$ref": "#/definitions/defaults",
+      "description": "Default settings applied to all targets unless overridden."
+    }
+  },
+  "additionalProperties": false,
+  "definitions": {
+    "target": {
+      "type": "object",
+      "properties": {
+        "module": {
+          "type": "string",
+          "enum": ["commonjs", "esnext", "es2015", "es2020", "es2022", "node16", "nodenext"],
+          "description": "TypeScript module format for output."
+        },
+        "format": {
+          "type": "string",
+          "enum": ["cjs", "esm", "iife", "umd"],
+          "description": "Bundler output format (used when imports is 'bundle')."
+        },
+        "outDir": {
+          "type": "string",
+          "description": "Output directory for compiled files."
+        },
+        "outFile": {
+          "type": "string",
+          "description": "Single output file path (for bundled targets)."
+        },
+        "imports": {
+          "type": "string",
+          "enum": ["preserve", "relative", "bundle", "specifier-map"],
+          "default": "preserve",
+          "description": "How workspace @scope/pkg imports are resolved in output."
+        },
+        "relativeMode": {
+          "type": "string",
+          "enum": ["path", "peer"],
+          "description": "For imports='relative': 'path' rewrites to file paths, 'peer' assumes peer dependency installation."
+        },
+        "declarations": {
+          "type": "boolean",
+          "description": "Emit .d.ts declaration files with import paths rewritten for this target."
+        },
+        "declarationMap": {
+          "type": "boolean",
+          "description": "Emit .d.ts.map source maps for declarations."
+        },
+        "sourceMap": {
+          "type": "boolean",
+          "description": "Emit .js.map source maps."
+        },
+        "condition": {
+          "type": "string",
+          "description": "Only build this target when --condition <name> or --all is passed.",
+          "examples": ["publish", "browser", "bundle", "deno", "deploy"]
+        },
+        "extensionMap": {
+          "type": "object",
+          "description": "Rename file extensions in output (e.g., { \".js\": \".mjs\", \".d.ts\": \".d.mts\" }).",
+          "additionalProperties": { "type": "string" }
+        },
+        "transpiler": {
+          "type": "string",
+          "enum": ["tsc", "esbuild", "swc"],
+          "description": "Transpiler for this target."
+        },
+        "bundler": {
+          "type": "string",
+          "enum": ["esbuild", "rollup"],
+          "description": "Bundler to use when imports='bundle'."
+        },
+        "external": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Dependencies to keep external (not bundled)."
+        },
+        "banner": {
+          "type": "string",
+          "description": "Comment banner prepended to each output file. Supports ${version} interpolation."
+        },
+        "target": {
+          "type": "string",
+          "description": "ECMAScript or runtime target (e.g., 'es2022', 'node18')."
+        },
+        "typeCheck": {
+          "type": "boolean",
+          "description": "Run tsc type checking before building this target."
+        },
+        "clean": {
+          "type": "boolean",
+          "description": "Remove outDir before building this target."
+        },
+        "importMap": {
+          "type": "string",
+          "description": "Path to an import map JSON file (for imports='specifier-map')."
+        }
+      },
+      "additionalProperties": false
+    },
+    "defaults": {
+      "type": "object",
+      "description": "Default values applied to every target.",
+      "properties": {
+        "transpiler": {
+          "type": "string",
+          "enum": ["tsc", "esbuild", "swc"],
+          "default": "tsc"
+        },
+        "typeCheck": {
+          "type": "boolean",
+          "default": true
+        },
+        "sourceMap": {
+          "type": "boolean",
+          "default": true
+        },
+        "clean": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

@@ -1,23 +1,31 @@
 import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
-import { loadBuildContextPublic, shouldSkipTarget } from '../orchestrator';
+import { loadBuildContextPublic, shouldSkipTarget, getPublishStagingDir } from '../orchestrator';
 import * as logger from '../utils/logger';
 
 interface PublishOptions {
   tag: string;
   filter: string[];
   condition?: string;
+  changed: boolean;
   dryRun: boolean;
 }
 
 export function handlePublish(args: string[]): void {
   const options = parsePublishOptions(args);
+  const stagingDir = getPublishStagingDir();
+
+  if (!fs.existsSync(stagingDir)) {
+    logger.error(`Staging directory not found: ${stagingDir}`);
+    logger.error('Run "tsf build --npm" first.');
+    process.exit(1);
+  }
 
   const ctx = loadBuildContextPublic();
   if (!ctx) return;
 
-  // Find packages with publishConfig
+  // Find publishable packages
   const allPackages = [...ctx.packages.values()];
   const publishable = allPackages.filter((pkg) => {
     const pkgJsonPath = path.join(pkg.path, 'package.json');
@@ -29,7 +37,7 @@ export function handlePublish(args: string[]): void {
     }
   });
 
-  // Apply condition filter (uses target-aware scoping)
+  // Apply condition filter
   let packages = publishable;
   if (options.condition) {
     const conditionTargets = ctx.targets.filter((t) => t.config.condition === options.condition);
@@ -39,6 +47,33 @@ export function handlePublish(args: string[]): void {
   // Apply name filter
   if (options.filter.length > 0) {
     packages = packages.filter((pkg) => options.filter.includes(pkg.name));
+  }
+
+  // Filter to packages that have staging output
+  packages = packages.filter((pkg) => {
+    const pkgStagingDir = path.join(stagingDir, pkg.name.replace(/^@/, ''));
+    if (!fs.existsSync(pkgStagingDir)) {
+      logger.warn(`No staging output for ${pkg.name} — skipping (run "tsf build --npm")`);
+      return false;
+    }
+    return true;
+  });
+
+  // Apply --changed filter
+  if (options.changed) {
+    packages = packages.filter((pkg) => {
+      try {
+        const published = execSync(`npm view ${pkg.name} version`, { stdio: 'pipe' }).toString().trim();
+        const local = pkg.version || '0.0.0';
+        if (published === local) {
+          logger.verbose(`${pkg.name}@${local} already published — skipping`);
+          return false;
+        }
+      } catch {
+        // Not published yet — include it
+      }
+      return true;
+    });
   }
 
   if (packages.length === 0) {
@@ -75,13 +110,33 @@ export function handlePublish(args: string[]): void {
   const label = options.dryRun ? ' (dry run)' : '';
 
   for (const pkg of ordered) {
-    logger.info(`Publishing ${pkg.name}${label}`);
+    const pkgStagingDir = path.join(stagingDir, pkg.name.replace(/^@/, ''));
+
+    logger.info(`Packing ${pkg.name}${label}`);
+
     try {
+      // Pack tarball from staging dir
+      const packOutput = execSync('npm pack --json', {
+        cwd: pkgStagingDir,
+        stdio: 'pipe',
+      }).toString().trim();
+
+      const packResult = JSON.parse(packOutput);
+      const tarballName = Array.isArray(packResult) ? packResult[0].filename : packResult.filename;
+      const tarballPath = path.join(pkgStagingDir, tarballName);
+
+      // Publish the tarball
+      logger.info(`Publishing ${pkg.name}${label}`);
       execSync(
-        `npm publish --access public --no-git-checks --tag ${options.tag} ${dryRunFlag}`.trim(),
-        { cwd: pkg.path, stdio: 'inherit' },
+        `npm publish ${tarballPath} --access public --no-git-checks --tag ${options.tag} ${dryRunFlag}`.trim(),
+        { stdio: 'inherit' },
       );
       published.push(pkg.name);
+
+      // Clean up tarball
+      if (fs.existsSync(tarballPath)) {
+        fs.unlinkSync(tarballPath);
+      }
     } catch {
       logger.error(`Failed to publish ${pkg.name}`);
       process.exit(1);
@@ -95,6 +150,7 @@ function parsePublishOptions(args: string[]): PublishOptions {
   const options: PublishOptions = {
     tag: 'latest',
     filter: [],
+    changed: false,
     dryRun: false,
   };
 
@@ -109,6 +165,9 @@ function parsePublishOptions(args: string[]): PublishOptions {
         break;
       case '--condition':
         options.condition = args[++i];
+        break;
+      case '--changed':
+        options.changed = true;
         break;
       case '--dry-run':
         options.dryRun = true;

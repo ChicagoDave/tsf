@@ -66,6 +66,7 @@ export interface BuildOptions {
   target?: string[];
   condition?: string[];
   all?: boolean;
+  npm?: boolean;
   check?: boolean;
   noCheck?: boolean;
   clean?: boolean;

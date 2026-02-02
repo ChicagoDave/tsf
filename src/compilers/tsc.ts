@@ -60,15 +60,22 @@ export function compile(
   }
 
   // Ensure workspace packages are resolvable during compilation.
-  // Keep existing paths pointing at source (for type resolution), and add
-  // any missing workspace deps. The import transformer rewrites output post-compile.
-  if (workspacePackages) {
+  // For npm/relative builds, skip path injection — let tsc resolve via node_modules
+  // symlinks so it emits bare specifiers (e.g. require("@sharpee/core")) that the
+  // import transformer can then rewrite. Path injection causes tsc to emit broken
+  // relative paths into the staging directory.
+  const isRelativeBuild = target.config.imports === 'relative';
+  if (workspacePackages && !isRelativeBuild) {
     const currentPaths: ts.MapLike<string[]> = { ...(parsedConfig.options.paths || {}) };
     let needsBaseUrl = false;
 
+    // Include transitive deps: tsc follows source paths and needs to resolve
+    // imports in dependency source files too (e.g. plugins -> world-model -> if-domain)
+    const transitiveDeps = getTransitiveDeps(pkg.name, workspacePackages);
+
     for (const [depName, depPkg] of workspacePackages) {
       if (depName === pkg.name) continue; // Skip self
-      if (!pkg.dependencies.includes(depName)) continue; // Only add actual deps
+      if (!transitiveDeps.has(depName)) continue; // Only add reachable deps
 
       // Add paths entry pointing at source if not already present
       if (!currentPaths[depName]) {
@@ -218,12 +225,76 @@ function flattenWidenedOutput(
   // Move all files from nested location to outDir root
   copyDirRecursive(nestedDir, outDir);
 
+  // Fix relative imports that reference the pre-flattened structure.
+  // After flattening, paths like "../src/index.js" should become "../index.js"
+  // because the "src/" nesting no longer exists in the output.
+  fixFlattenedImports(outDir);
+
   // Remove the top-level nested directory (e.g., outDir/packages/)
   const topNested = path.join(outDir, relFromRoot.split(path.sep)[0]);
   if (fs.existsSync(topNested) && topNested !== outDir) {
     fs.rmSync(topNested, { recursive: true });
     logger.verbose(`Flattened output from ${relFromRoot}/ to outDir root`, context);
   }
+}
+
+/**
+ * After flattening widened output, relative imports may still contain
+ * a "src/" segment from the original nested structure. Rewrite them.
+ * e.g. require("../src/index.js") → require("../index.js")
+ *      require("./src/utils/foo.js") → require("./utils/foo.js")
+ */
+function fixFlattenedImports(outDir: string): void {
+  const jsFiles: string[] = [];
+  collectFilesRecursive(outDir, jsFiles, ['.js', '.d.ts', '.d.ts.map']);
+
+  for (const file of jsFiles) {
+    let content = fs.readFileSync(file, 'utf-8');
+    let changed = false;
+
+    // Match require("..."), from "...", and import("...") patterns containing /src/ segments
+    const updated = content.replace(
+      /(require\(["']|from\s+["']|import\(["'])(\.\.?\/(?:[^"']*\/)?)(src\/)/g,
+      (match, prefix, relPath, _srcSegment) => {
+        changed = true;
+        return prefix + relPath;
+      },
+    );
+
+    if (changed) {
+      fs.writeFileSync(file, updated, 'utf-8');
+    }
+  }
+}
+
+function collectFilesRecursive(dir: string, files: string[], extensions: string[]): void {
+  if (!fs.existsSync(dir)) return;
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const fullPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      collectFilesRecursive(fullPath, files, extensions);
+    } else if (extensions.some((ext) => entry.name.endsWith(ext))) {
+      files.push(fullPath);
+    }
+  }
+}
+
+function getTransitiveDeps(
+  pkgName: string,
+  workspacePackages: Map<string, PackageInfo>,
+): Set<string> {
+  const result = new Set<string>();
+  const queue = [...(workspacePackages.get(pkgName)?.dependencies ?? [])];
+  while (queue.length > 0) {
+    const dep = queue.pop()!;
+    if (result.has(dep)) continue;
+    result.add(dep);
+    const depPkg = workspacePackages.get(dep);
+    if (depPkg) {
+      queue.push(...depPkg.dependencies);
+    }
+  }
+  return result;
 }
 
 function copyDirRecursive(src: string, dest: string): void {

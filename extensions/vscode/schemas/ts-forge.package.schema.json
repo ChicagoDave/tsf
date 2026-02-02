@@ -1,0 +1,38 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ts-forge.dev/schemas/ts-forge.json",
+  "title": "ts-forge Package Configuration",
+  "description": "Per-package overrides for ts-forge build targets. Place as ts-forge.json in a package directory.",
+  "type": "object",
+  "properties": {
+    "targets": {
+      "type": "object",
+      "description": "Target-specific overrides for this package. Keys must match target names in the root ts-forge.config.json.",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "banner": {
+            "type": "string",
+            "description": "Banner comment for this package's output. Supports ${version} interpolation."
+          },
+          "external": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Additional external dependencies for this package."
+          },
+          "transpiler": {
+            "type": "string",
+            "enum": ["tsc", "esbuild", "swc"],
+            "description": "Override the transpiler for this package."
+          },
+          "skip": {
+            "type": "boolean",
+            "description": "Skip this target entirely for this package."
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

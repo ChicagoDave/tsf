@@ -46,6 +46,7 @@ export function resolvePackages(
     const allDeps = {
       ...pkgJson.dependencies,
       ...pkgJson.devDependencies,
+      ...pkgJson.peerDependencies,
     };
     const deps = workspacePackageNames
       ? Object.keys(allDeps).filter((d) => workspacePackageNames.has(d))
@@ -68,7 +69,7 @@ export function resolvePackages(
     for (const pkg of packages.values()) {
       const pkgJsonPath = path.join(pkg.path, 'package.json');
       const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf-8'));
-      const allDeps = { ...pkgJson.dependencies, ...pkgJson.devDependencies };
+      const allDeps = { ...pkgJson.dependencies, ...pkgJson.devDependencies, ...pkgJson.peerDependencies };
       pkg.dependencies = Object.keys(allDeps).filter((d) => knownNames.has(d));
     }
   }

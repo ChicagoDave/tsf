@@ -31,11 +31,6 @@ export function syncPackageJson(
   const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf-8'));
   const fields = generateFields(pkg, targets);
 
-  if (Object.keys(fields).length === 0) {
-    logger.verbose('No fields to sync', pkg.name);
-    return;
-  }
-
   // Merge generated fields into existing package.json
   let changed = false;
   for (const [key, value] of Object.entries(fields)) {
@@ -54,6 +49,80 @@ export function syncPackageJson(
   logger.success('Synced package.json', pkg.name);
 }
 
+/**
+ * Generate a clean package.json for npm publish.
+ * Strips workspace:* deps, devDependencies, and sets entry points
+ * relative to the staging dir root (flat output).
+ */
+export function generatePublishManifest(pkg: PackageInfo): Record<string, unknown> {
+  const pkgJsonPath = path.join(pkg.path, 'package.json');
+  const source = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf-8'));
+
+  const manifest: Record<string, unknown> = { ...source };
+  const entryBase = path.basename(pkg.entryPoint).replace(/\.tsx?$/, '.js');
+  const dtsBase = entryBase.replace(/\.js$/, '.d.ts');
+
+  // Set entry points relative to staging root
+  manifest.main = './' + entryBase;
+  manifest.types = './' + dtsBase;
+  manifest.exports = {
+    '.': {
+      types: './' + dtsBase,
+      require: './' + entryBase,
+      default: './' + entryBase,
+    },
+  };
+
+  // Strip workspace:* from dependencies
+  stripWorkspaceDeps(manifest);
+
+  // Remove devDependencies entirely
+  delete manifest.devDependencies;
+
+  // Remove fields that don't belong in a publish manifest
+  delete manifest.scripts;
+  delete manifest.files;
+  delete manifest.module;
+
+  // Rewrite bin paths — source paths like ./dist-npm/cli/index.js become ./cli/index.js
+  if (manifest.bin) {
+    if (typeof manifest.bin === 'string') {
+      manifest.bin = './' + path.basename(manifest.bin as string);
+    } else if (typeof manifest.bin === 'object') {
+      const bin = manifest.bin as Record<string, string>;
+      for (const [name, binPath] of Object.entries(bin)) {
+        // Strip the outDir prefix (e.g. dist-npm/) — staging root is flat
+        const parts = binPath.replace(/^\.\//, '').split('/');
+        // Remove the first segment if it looks like an outDir (dist, dist-npm, etc.)
+        if (parts.length > 1 && parts[0].startsWith('dist')) {
+          parts.shift();
+        }
+        bin[name] = './' + parts.join('/');
+      }
+    }
+  }
+
+  return manifest;
+}
+
+export function stripWorkspaceDeps(pkgJson: Record<string, unknown>): number {
+  let count = 0;
+  for (const field of ['dependencies', 'devDependencies', 'optionalDependencies']) {
+    const deps = pkgJson[field] as Record<string, string> | undefined;
+    if (!deps) continue;
+    for (const [name, version] of Object.entries(deps)) {
+      if (typeof version === 'string' && version.startsWith('workspace:')) {
+        delete deps[name];
+        count++;
+      }
+    }
+    if (Object.keys(deps).length === 0) {
+      delete pkgJson[field];
+    }
+  }
+  return count;
+}
+
 export function generateFields(
   pkg: PackageInfo,
   targets: ResolvedTarget[],
@@ -66,12 +135,8 @@ export function generateFields(
   let declTarget: ResolvedTarget | undefined;
   let binTarget: ResolvedTarget | undefined;
 
-  // Sort targets so publish-conditioned targets are preferred (checked first)
-  const sorted = [...targets].sort((a, b) => {
-    const aPublish = a.config.condition === 'publish' ? 0 : 1;
-    const bPublish = b.config.condition === 'publish' ? 0 : 1;
-    return aPublish - bPublish;
-  });
+  // Exclude publish-conditioned targets — their output goes to staging, not the package tree
+  const sorted = targets.filter((t) => t.config.condition !== 'publish');
 
   for (const t of sorted) {
     const cfg = t.config;

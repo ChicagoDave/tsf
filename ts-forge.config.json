@@ -1,0 +1,19 @@
+{
+  "projects": [
+    "packages/*/tsconfig.json"
+  ],
+  "targets": {
+    "cli": {
+      "outDir": "dist/cli",
+      "imports": "bundle",
+      "bundler": "esbuild",
+      "banner": "#!/usr/bin/env node"
+    }
+  },
+  "defaults": {
+    "transpiler": "tsc",
+    "typeCheck": true,
+    "sourceMap": true,
+    "clean": false
+  }
+}

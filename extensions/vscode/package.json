@@ -1,0 +1,148 @@
+{
+  "name": "ts-forge-vscode",
+  "displayName": "ts-forge",
+  "description": "Multi-target TypeScript build tool support for VS Code",
+  "version": "0.1.0",
+  "publisher": "ts-forge",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Programming Languages", "Other"],
+  "keywords": ["typescript", "build", "monorepo", "multi-target"],
+  "activationEvents": [
+    "workspaceContains:ts-forge.config.json"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "ts-forge.build",
+        "title": "Build",
+        "category": "ts-forge"
+      },
+      {
+        "command": "ts-forge.buildTarget",
+        "title": "Build Target...",
+        "category": "ts-forge"
+      },
+      {
+        "command": "ts-forge.check",
+        "title": "Type Check",
+        "category": "ts-forge"
+      },
+      {
+        "command": "ts-forge.info",
+        "title": "Show Build Info",
+        "category": "ts-forge"
+      },
+      {
+        "command": "ts-forge.clean",
+        "title": "Clean Build Outputs",
+        "category": "ts-forge"
+      }
+    ],
+    "taskDefinitions": [
+      {
+        "type": "ts-forge",
+        "required": [],
+        "properties": {
+          "target": {
+            "type": "string",
+            "description": "Build target to run (e.g., 'local', 'npm-cjs')"
+          },
+          "condition": {
+            "type": "string",
+            "description": "Build targets matching this condition"
+          },
+          "watch": {
+            "type": "boolean",
+            "description": "Run in watch mode"
+          },
+          "check": {
+            "type": "boolean",
+            "description": "Enable type checking"
+          },
+          "clean": {
+            "type": "boolean",
+            "description": "Clean output directories before build"
+          },
+          "verbose": {
+            "type": "boolean",
+            "description": "Show detailed output"
+          }
+        }
+      }
+    ],
+    "problemMatchers": [
+      {
+        "name": "ts-forge-tsc",
+        "owner": "ts-forge",
+        "fileLocation": ["relative", "${workspaceFolder}"],
+        "pattern": {
+          "regexp": "^(.+?)\\((\\d+),(\\d+)\\):\\s+(error|warning)\\s+(TS\\d+):\\s+(.*)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "severity": 4,
+          "code": 5,
+          "message": 6
+        }
+      },
+      {
+        "name": "ts-forge-esbuild",
+        "owner": "ts-forge",
+        "fileLocation": ["relative", "${workspaceFolder}"],
+        "pattern": {
+          "regexp": "^\\s*(.+?):(\\d+):(\\d+):\\s+(error|warning):\\s+(.*)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "severity": 4,
+          "message": 5
+        }
+      }
+    ],
+    "jsonValidation": [
+      {
+        "fileMatch": "ts-forge.config.json",
+        "url": "./schemas/ts-forge.config.schema.json"
+      },
+      {
+        "fileMatch": "ts-forge.json",
+        "url": "./schemas/ts-forge.package.schema.json"
+      }
+    ],
+    "configuration": {
+      "title": "ts-forge",
+      "properties": {
+        "ts-forge.executable": {
+          "type": "string",
+          "default": "ts-forge",
+          "description": "Path to the ts-forge executable."
+        },
+        "ts-forge.autoDetect": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically detect and provide ts-forge tasks."
+        },
+        "ts-forge.showStatusBar": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show build status in the status bar."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "node esbuild.config.js --production",
+    "build": "node esbuild.config.js",
+    "dev": "node esbuild.config.js --watch",
+    "compile": "tsc -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/vscode": "^1.85.0",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.7.0"
+  }
+}

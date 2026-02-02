@@ -335,6 +335,8 @@ When `--no-check` is used, the tool uses `esbuild` or `swc` for transpilation (c
 
 ## CLI Interface
 
+### Build Commands
+
 ```
 ts-forge build [options]
   --target <name>       Build specific target(s), comma-separated
@@ -345,15 +347,51 @@ ts-forge build [options]
   --clean               Remove output dirs before build
   --verbose             Show detailed output
   --parallel <n>        Max parallel builds (default: CPU count)
+  --sync-package-json   Sync package.json fields after build
 
 ts-forge check
   Run type checking only (no emit)
 
-ts-forge init
-  Generate tsf.config.json from existing tsconfig.json files
-
 ts-forge info
   Show resolved build plan (dependency order, targets, paths)
+```
+
+### Package Lifecycle Commands
+
+```
+ts-forge sync
+  Sync package.json fields (main, module, types, exports, bin) from target config.
+
+ts-forge validate
+  Verify outputs exist, declarations match JS files, no workspace specifiers
+  leaked into non-preserve output
+
+ts-forge version [options]
+  --bump <level>        Bump version (major, minor, patch, prerelease)
+  --condition <name>    Only packages matching target condition
+  --changed             Only packages changed since last publish
+
+ts-forge publish [options]
+  --tag <tag>           npm dist-tag (default: latest)
+  --condition <name>    Only packages matching target condition
+  --filter <name>       Restrict to specific package(s), repeatable
+  --dry-run             Pass --dry-run to npm publish
+
+ts-forge list
+  List workspace packages in dependency order
+
+ts-forge changed
+  Show packages changed since last npm publish
+```
+
+### Setup Commands
+
+```
+ts-forge init
+  Generate ts-forge.config.json from existing tsconfig.json files
+
+ts-forge gh-action
+  Generate GitHub Actions workflow for CI builds
 ```
 
 ## Architecture
@@ -378,6 +416,9 @@ ts-forge info
 ├─────────────────────────────────────────────────┤
 │           Declaration Transformer                 │
 │  (same rewriting applied to .d.ts files)          │
+├─────────────────────────────────────────────────┤
+│           Package JSON Sync                       │
+│  (entry points, exports, dependency rewriting)    │
 ├─────────────────────────────────────────────────┤
 │            Workspace Resolver                     │
 │  (reads pnpm/yarn/npm workspace topology,         │
@@ -466,7 +507,41 @@ The tool can optionally update `package.json` fields to match target outputs:
 }
 ```
 
-Running `ts-forge init --sync-package-json` generates these fields from the config.
+Running `ts-forge sync` generates these fields from the config (also available via `ts-forge build --sync-package-json`).
+
+### Dependency Handling for Publish Targets
+
+The entry point and exports sync above is necessary but not sufficient for npm publish. Published packages also have `workspace:*` protocol references in their `dependencies`, which npm cannot resolve:
+
+```json
+{
+  "dependencies": {
+    "@sharpee/core": "workspace:*",
+    "lz-string": "^2.0.0"
+  }
+}
+```
+
+When a consumer runs `npm install @sharpee/engine`, npm reads `dependencies` and fails on `workspace:*` before any code executes — even though the built code uses relative imports and never references `@sharpee/core` by package name.
+
+**Strategy:** `tsf publish` temporarily strips workspace dependencies from `package.json` before running `npm publish`, then restores the original. This keeps local development working (pnpm needs `workspace:*` for symlink resolution) while publishing clean packages. The rationale:
+
+1. **Import statements are already rewritten** to relative paths — the runtime code doesn't need npm to resolve workspace packages
+2. **`workspace:*` is unpublishable** — npm rejects it outright
+3. **Non-workspace dependencies** (e.g., `lz-string`) are left untouched — the code still `require()`s them by package name
+4. **Local dev is unaffected** — the on-disk `package.json` is restored immediately after publish
+
+The published package.json looks like:
+
+```json
+{
+  "dependencies": {
+    "lz-string": "^2.0.0"
+  }
+}
+```
+
+This completes the publish pipeline: `tsf build --condition publish` rewrites imports in code, `tsf sync` syncs entry point fields, `tsf publish` temporarily strips workspace deps and runs `npm publish`.
 
 ## Scenarios
 
@@ -531,34 +606,27 @@ Running `ts-forge init --sync-package-json` generates these fields from the conf
 
 ### Phase 1: Core (MVP) ✅
 
-1. ✅ Config parser and validator
-2. ✅ Workspace resolver (pnpm) — npm/yarn detection planned
-3. ✅ Build orchestrator with dependency ordering
-4. ✅ TSC compiler adapter (including rootDir widening + output flattening)
-5. ✅ Import transformer (`preserve` and `relative` modes)
-6. ✅ Declaration transformer
-7. ✅ CLI with `build`, `info` — `check` and `init` planned
-8. ✅ Test suite (9 unit + 8 integration tests, all passing)
+Config parser, workspace resolver, build orchestrator, TSC compiler adapter (rootDir widening + output flattening), import transformer (`preserve` and `relative`), declaration transformer, CLI (`build`, `info`), test suite.
 
 ### Phase 2: Performance ✅
 
-9. ✅ Incremental cache (per-package-per-target, SHA-256 content hashing, dependency cascade)
-10. ✅ esbuild transpiler adapter (transpile + separate tsc declaration emit, lazy-loaded)
-11. ✅ Parallel builds within dependency level (Promise.all with configurable concurrency via `--parallel`)
-12. ✅ Watch mode (fs.watch recursive, debounced, dependency-aware rebuild)
+Incremental cache (per-package-per-target SHA-256), esbuild transpiler adapter, parallel builds within dependency levels, watch mode.
 
 ### Phase 3: Bundling ✅
 
-13. ✅ esbuild bundler adapter (`bundle` import mode)
-14. ✅ Rollup bundler adapter (tree shaking)
-15. ✅ `outFile` support for single-file output
+esbuild bundler adapter (`bundle` import mode), rollup bundler adapter, `outFile` support.
 
 ### Phase 4: Ecosystem ✅
 
-16. ✅ `ts-forge init` auto-detection from existing configs
-17. ✅ `--sync-package-json` to update package.json fields
-18. ✅ Validation (like publint) to verify outputs are correct
-19. ✅ GitHub Action for CI integration
+`ts-forge init` auto-detection, `--sync-package-json` for entry point fields, validation (`validate` command), GitHub Action generation.
+
+### Phase 5: Package Lifecycle ✅
+
+`version` command (bump with `--changed` detection), `publish` command (npm publish in dependency order), `list` command, `changed` command, `sync` as standalone command.
+
+### Phase 6: Dependency Rewriting ✅
+
+`tsf publish` temporarily strips `workspace:*` dependencies from `package.json` before running `npm publish`, then restores the original. This keeps local dev working while publishing clean packages that npm can install.
 
 ## Resolved Questions
 

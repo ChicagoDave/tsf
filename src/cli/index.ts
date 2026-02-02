@@ -158,6 +158,12 @@ function parseBuildOptions(args: string[]): BuildOptions {
         if (!isNaN(val)) options.parallel = val;
         break;
       }
+      case '--npm':
+        options.npm = true;
+        break;
+      case '--local':
+        // Explicit local mode (default behavior)
+        break;
       case '--sync-package-json':
         // Handled separately in handleBuild
         break;
@@ -179,6 +185,12 @@ ts-forge build — Build targets across all packages in dependency order.
 
 Usage:
   ts-forge build [options]
+
+Modes:
+  --local               Build for local dev (default) — compiles to dist/
+  --npm                 Build for npm publish — compiles to staging dir
+                        (~/.tsf-publish/) with relative imports and clean
+                        package.json. Run "tsf publish" after to publish.
 
 Options:
   --target <name>       Build specific target(s), comma-separated
@@ -262,25 +274,26 @@ Examples:
 
 function printPublishHelp(): void {
   console.log(`
-ts-forge publish — Publish workspace packages to npm in dependency order.
+ts-forge publish — Publish workspace packages to npm from staging directory.
 
 Usage:
   ts-forge publish [options]
 
-Publishes packages that have publishConfig in their package.json.
-Checks npm login before publishing. Publishes in dependency order.
+Packs tarballs from ~/.tsf-publish/ and publishes to npm.
+Requires "tsf build --npm" to have been run first.
+Publishes in dependency order.
 
 Options:
   --tag <tag>           npm dist-tag (default: latest)
   --condition <name>    Only packages matching target condition (e.g., publish)
   --filter <name>       Restrict to specific package(s), repeatable
+  --changed             Only publish packages with version > npm registry
   --dry-run             Pass --dry-run to npm publish
 
 Examples:
-  ts-forge publish
-  ts-forge publish --tag beta
-  ts-forge publish --dry-run
-  ts-forge publish --filter @myorg/core --filter @myorg/utils
+  ts-forge build --npm && ts-forge publish
+  ts-forge publish --tag latest
+  ts-forge publish --changed --dry-run
 `.trim());
 }
 

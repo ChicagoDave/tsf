@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import type { PackageInfo, ResolvedTarget } from '../src/types';
-import { generateFields, syncPackageJson } from '../src/sync/package-json';
+import { generateFields, syncPackageJson, stripWorkspaceDeps, generatePublishManifest } from '../src/sync/package-json';
 
 const TMP_DIR = path.resolve(__dirname, '.sync-test-tmp');
 
@@ -106,5 +106,92 @@ describe('syncPackageJson', () => {
     syncPackageJson(makePkg(), targets);
     const second = fs.readFileSync(path.join(TMP_DIR, 'package.json'), 'utf-8');
     expect(first).toBe(second);
+  });
+
+  it('does not strip workspace deps', () => {
+    fs.writeFileSync(
+      path.join(TMP_DIR, 'package.json'),
+      JSON.stringify({
+        name: '@test/lib',
+        version: '1.0.0',
+        dependencies: { '@scope/core': 'workspace:*' },
+      }),
+    );
+    const targets: ResolvedTarget[] = [
+      { name: 'npm', config: { module: 'commonjs', outDir: 'dist', imports: 'relative' } },
+    ];
+    syncPackageJson(makePkg(), targets);
+
+    const pkg = JSON.parse(fs.readFileSync(path.join(TMP_DIR, 'package.json'), 'utf-8'));
+    expect(pkg.dependencies).toEqual({ '@scope/core': 'workspace:*' });
+  });
+});
+
+describe('stripWorkspaceDeps', () => {
+  it('removes workspace: entries from all dep fields', () => {
+    const pkgJson: Record<string, unknown> = {
+      dependencies: { a: 'workspace:*', b: '^1.0.0' },
+      devDependencies: { c: 'workspace:^' },
+      optionalDependencies: { d: 'workspace:~', e: '1.0.0' },
+    };
+    const count = stripWorkspaceDeps(pkgJson);
+    expect(count).toBe(3);
+    expect(pkgJson.dependencies).toEqual({ b: '^1.0.0' });
+    expect(pkgJson.devDependencies).toBeUndefined();
+    expect(pkgJson.optionalDependencies).toEqual({ e: '1.0.0' });
+  });
+
+  it('returns 0 when no workspace deps exist', () => {
+    const pkgJson: Record<string, unknown> = {
+      dependencies: { a: '^1.0.0' },
+    };
+    expect(stripWorkspaceDeps(pkgJson)).toBe(0);
+  });
+});
+
+describe('generatePublishManifest', () => {
+  it('strips workspace deps and devDependencies', () => {
+    fs.writeFileSync(
+      path.join(TMP_DIR, 'package.json'),
+      JSON.stringify({
+        name: '@test/lib',
+        version: '2.0.0',
+        dependencies: { '@scope/core': 'workspace:*', 'lz-string': '^2.0.0' },
+        devDependencies: { vitest: '^3.0.0' },
+        publishConfig: { access: 'public' },
+      }),
+    );
+    const manifest = generatePublishManifest(makePkg());
+    expect(manifest.name).toBe('@test/lib');
+    expect(manifest.version).toBe('2.0.0');
+    expect(manifest.dependencies).toEqual({ 'lz-string': '^2.0.0' });
+    expect(manifest.devDependencies).toBeUndefined();
+    expect(manifest.publishConfig).toEqual({ access: 'public' });
+  });
+
+  it('sets entry points relative to root', () => {
+    fs.writeFileSync(
+      path.join(TMP_DIR, 'package.json'),
+      JSON.stringify({ name: '@test/lib', version: '1.0.0' }),
+    );
+    const manifest = generatePublishManifest(makePkg());
+    expect(manifest.main).toBe('./index.js');
+    expect(manifest.types).toBe('./index.d.ts');
+    const exports = manifest.exports as Record<string, Record<string, string>>;
+    expect(exports['.']).toBeDefined();
+    expect(exports['.'].require).toBe('./index.js');
+    expect(exports['.'].types).toBe('./index.d.ts');
+  });
+
+  it('does not modify source package.json', () => {
+    const original = JSON.stringify({
+      name: '@test/lib',
+      version: '1.0.0',
+      dependencies: { '@scope/core': 'workspace:*' },
+    });
+    fs.writeFileSync(path.join(TMP_DIR, 'package.json'), original);
+    generatePublishManifest(makePkg());
+    const afterCall = fs.readFileSync(path.join(TMP_DIR, 'package.json'), 'utf-8');
+    expect(afterCall).toBe(original);
   });
 });

@@ -1,0 +1,342 @@
+david@Davids-Mac-mini sharpee % tsf build
+Building local across 30 package(s)
+[@sharpee/core:local] Compiling...
+[@sharpee/core:local] ✓ Done
+[@sharpee/map-editor:local] Compiling...
+✗ Option 'allowImportingTsExtensions' can only be used when either 'noEmit' or 'emitDeclarationOnly' is set.
+✗ packages/map-editor/src/components/Layout/Header.tsx(36,40): error TS2339: Property 'mapEditorApi' does not exist on type 'Window & typeof globalThis'.
+✗ packages/map-editor/src/components/Layout/Header.tsx(53,41): error TS2339: Property 'mapEditorApi' does not exist on type 'Window & typeof globalThis'.
+✗ packages/map-editor/src/components/Layout/Header.tsx(69,59): error TS7006: Parameter 'r' implicitly has an 'any' type.
+✗ packages/map-editor/src/components/Layout/Header.tsx(85,85): error TS2345: Argument of type 'unknown' is not assignable to parameter of type 'string'.
+✗ packages/map-editor/src/components/Layout/Header.tsx(87,34): error TS2345: Argument of type 'unknown[]' is not assignable to parameter of type 'string[]'.
+  Type 'unknown' is not assignable to type 'string'.
+✗ packages/map-editor/src/components/Layout/Header.tsx(110,35): error TS2339: Property 'mapEditorApi' does not exist on type 'Window & typeof globalThis'.
+✗ packages/map-editor/src/components/WelcomeScreen.tsx(10,33): error TS2339: Property 'mapEditorApi' does not exist on type 'Window & typeof globalThis'.
+✗ packages/map-editor/src/main.tsx(1,8): error TS1259: Module '"/Users/david/repos/sharpee/node_modules/.pnpm/@types+react@18.3.27/node_modules/@types/react/index"' can only be default-imported using the 'esModuleInterop' flag
+✗ packages/map-editor/src/main.tsx(2,8): error TS1192: Module '"/Users/david/repos/sharpee/node_modules/.pnpm/@types+react-dom@18.3.7_@types+react@18.3.27/node_modules/@types/react-dom/client"' has no default export.
+[@sharpee/platform-browser:local] Compiling...
+[@sharpee/platform-browser:local] ✓ Done
+[@sharpee/text-blocks:local] Compiling...
+[@sharpee/text-blocks:local] ✓ Done
+[@sharpee/zifmia:local] Compiling...
+[@sharpee/zifmia:local] ✓ Done
+[@sharpee/extension-conversation:local] Compiling...
+[@sharpee/extension-conversation:local] ✓ Done
+[@sharpee/if-domain:local] Compiling...
+[@sharpee/if-domain:local] ✓ Done
+[@sharpee/lang-en-us:local] Compiling...
+[@sharpee/lang-en-us:local] ✓ Done
+[@sharpee/world-model:local] Compiling...
+[@sharpee/world-model:local] ✓ Done
+[@sharpee/event-processor:local] Compiling...
+[@sharpee/event-processor:local] ✓ Done
+[@sharpee/ext-testing:local] Compiling...
+[@sharpee/ext-testing:local] ✓ Done
+[@sharpee/if-services:local] Compiling...
+[@sharpee/if-services:local] ✓ Done
+[@sharpee/parser-en-us:local] Compiling...
+✗ packages/world-model/src/world/AuthorModel.ts(135,9): error TS2662: Cannot find name 'name'. Did you mean the static member 'AuthorModel.name'?
+[@sharpee/plugins:local] Compiling...
+[@sharpee/plugins:local] ✓ Done
+[@sharpee/plugin-scheduler:local] Compiling...
+[@sharpee/plugin-scheduler:local] ✓ Done
+[@sharpee/plugin-state-machine:local] Compiling...
+[@sharpee/plugin-state-machine:local] ✓ Done
+[@sharpee/stdlib:local] Compiling...
+[@sharpee/stdlib:local] ✓ Done
+[@sharpee/text-service:local] Compiling...
+[@sharpee/text-service:local] ✓ Done
+[@sharpee/engine:local] Compiling...
+[@sharpee/engine:local] ✓ Done
+[@sharpee/plugin-npc:local] Compiling...
+[@sharpee/plugin-npc:local] ✓ Done
+[@sharpee-stories/secretletter2025:local] Compiling...
+[@sharpee-stories/secretletter2025:local] ✓ Done
+[@sharpee/platform-test:local] Compiling...
+[@sharpee/platform-test:local] ✓ Done
+[@sharpee/sharpee:local] Compiling...
+[@sharpee/sharpee:local] ✓ Done
+[@sharpee/story-armoured:local] Compiling...
+✗ packages/engine/src/game-engine.ts(171,26): error TS2345: Argument of type 'IGameEvent' is not assignable to parameter of type 'ISemanticEvent'.
+  Type 'IGameEvent' is missing the following properties from type 'ISemanticEvent': id, timestamp, entities
+[@sharpee/story-cloak-of-darkness:local] Compiling...
+✗ stories/cloak-of-darkness/src/debug-runner.ts(43,7): error TS2353: Object literal may only specify known properties, and 'textService' does not exist in type '{ world: WorldModel; player: IFEntity; parser: Parser; language: LanguageProvider; perceptionService?: any; config?: EngineConfig | undefined; }'.
+✗ stories/cloak-of-darkness/src/test-runner.ts(51,7): error TS2353: Object literal may only specify known properties, and 'textService' does not exist in type '{ world: WorldModel; player: IFEntity; parser: Parser; language: LanguageProvider; perceptionService?: any; config?: EngineConfig | undefined; }'.
+[@sharpee/story-dungeo:local] Compiling...
+✗ stories/dungeo/src/actions/answer/answer-action.ts(135,29): error TS2339: Property 'parsed' does not exist on type 'ValidatedCommand'.
+✗ stories/dungeo/src/actions/answer/answer-action.ts(248,46): error TS7006: Parameter 'e' implicitly has an 'any' type.
+✗ stories/dungeo/src/actions/break/break-action.ts(34,37): error TS2339: Property 'parsed' does not exist on type 'ValidatedCommand'.
+✗ stories/dungeo/src/actions/break/break-action.ts(40,54): error TS7006: Parameter 'e' implicitly has an 'any' type.
+✗ stories/dungeo/src/actions/burn/burn-action.ts(44,37): error TS2339: Property 'parsed' does not exist on type 'ValidatedCommand'.
+✗ stories/dungeo/src/actions/burn/burn-action.ts(50,54): error TS7006: Parameter 'e' implicitly has an 'any' type.
+✗ stories/dungeo/src/actions/chimney-blocked/chimney-blocked-action.ts(30,36): error TS2339: Property 'parsed' does not exist on type 'ValidatedCommand'.
+✗ stories/dungeo/src/actions/chimney-blocked/chimney-blocked-action.ts(46,36): error TS2339: Property 'parsed' does not exist on type 'ValidatedCommand'.
+✗ stories/dungeo/src/actions/commanding/commanding-action.ts(379,33): error TS2339: Property 'directObject' does not exist on type 'ValidatedCommand'.
+✗ stories/dungeo/src/actions/commanding/commanding-action.ts(399,33): error TS2339: Property 'directObject' does not exist on type 'ValidatedCommand'.
+✗ stories/dungeo/src/actions/commanding/commanding-action.ts(401,37): error TS2339: Property 'parsed' does not exist on type 'ValidatedCommand'.
+✗ stories/dungeo/src/actions/deflate/deflate-action.ts(41,42): error TS7006: Parameter 'item' implicitly has an 'any' type.
+✗ stories/dungeo/src/actions/deflate/deflate-action.ts(53,42): error TS7006: Parameter 'item' implicitly has an 'any' type.
+✗ stories/dungeo/src/actions/dig/dig-action.ts(37,25): error TS7006: Parameter 'item' implicitly has an 'any' type.
+✗ stories/dungeo/src/actions/dig/dig-action.ts(128,50): error TS7006: Parameter 'e' implicitly has an 'any' type.
+✗ stories/dungeo/src/actions/gdt/gdt-command-action.ts(43,35): error TS2339: Property 'parsed' does not exist on type 'ValidatedCommand'.
+✗ stories/dungeo/src/actions/grue-death/grue-death-action.ts(43,39): error TS2339: Property 'parsed' does not exist on type 'ValidatedCommand'.
+✗ stories/dungeo/src/actions/incant/incant-action.ts(71,37): error TS2339: Property 'parsed' does not exist on type 'ValidatedCommand'.
+✗ stories/dungeo/src/actions/incant/incant-action.ts(133,36): error TS7006: Parameter 'e' implicitly has an 'any' type.
+✗ stories/dungeo/src/actions/incant/incant-action.ts(141,39): error TS7006: Parameter 'e' implicitly has an 'any' type.
+✗ stories/dungeo/src/actions/inflate/inflate-action.ts(51,25): error TS7006: Parameter 'item' implicitly has an 'any' type.
+✗ stories/dungeo/src/actions/inflate/inflate-action.ts(63,42): error TS7006: Parameter 'item' implicitly has an 'any' type.
+✗ stories/dungeo/src/actions/inflate/inflate-action.ts(69,42): error TS7006: Parameter 'item' implicitly has an 'any' type.
+✗ stories/dungeo/src/actions/lift/lift-action.ts(29,37): error TS2339: Property 'parsed' does not exist on type 'ValidatedCommand'.
+✗ stories/dungeo/src/actions/lift/lift-action.ts(35,54): error TS7006: Parameter 'e' implicitly has an 'any' type.
+✗ stories/dungeo/src/actions/light/light-action.ts(74,46): error TS7006: Parameter 'e' implicitly has an 'any' type.
+✗ stories/dungeo/src/actions/light/light-action.ts(88,37): error TS2339: Property 'parsed' does not exist on type 'ValidatedCommand'.
+✗ stories/dungeo/src/actions/light/light-action.ts(98,37): error TS2339: Property 'parsed' does not exist on type 'ValidatedCommand'.
+✗ stories/dungeo/src/actions/lower/lower-action.ts(29,37): error TS2339: Property 'parsed' does not exist on type 'ValidatedCommand'.
+✗ stories/dungeo/src/actions/lower/lower-action.ts(35,54): error TS7006: Parameter 'e' implicitly has an 'any' type.
+✗ stories/dungeo/src/actions/pray/pray-action.ts(28,54): error TS7006: Parameter 'e' implicitly has an 'any' type.
+✗ stories/dungeo/src/actions/press-button/press-button-action.ts(56,36): error TS2339: Property 'directObject' does not exist on type 'ValidatedCommand'.
+✗ stories/dungeo/src/actions/push-panel/push-panel-action.ts(111,37): error TS2339: Property 'parsed' does not exist on type 'ValidatedCommand'.
+✗ stories/dungeo/src/actions/push-panel/push-panel-action.ts(141,38): error TS2339: Property 'parsed' does not exist on type 'ValidatedCommand'.
+✗ stories/dungeo/src/actions/push-wall/push-wall-action.ts(41,45): error TS2339: Property 'parsed' does not exist on type 'ValidatedCommand'.
+✗ stories/dungeo/src/actions/push-wall/push-wall-action.ts(64,24): error TS7006: Parameter 'e' implicitly has an 'any' type.
+✗ stories/dungeo/src/actions/puzzle-move/puzzle-move-action.ts(33,39): error TS2339: Property 'parsed' does not exist on type 'ValidatedCommand'.
+✗ stories/dungeo/src/actions/ring/ring-action.ts(59,37): error TS2339: Property 'parsed' does not exist on type 'ValidatedCommand'.
+✗ stories/dungeo/src/actions/ring/ring-action.ts(66,54): error TS7006: Parameter 'e' implicitly has an 'any' type.
+✗ stories/dungeo/src/actions/room-info/objects-action.ts(86,60): error TS7006: Parameter 'item' implicitly has an 'any' type.
+✗ stories/dungeo/src/actions/room-info/objects-action.ts(104,58): error TS7006: Parameter 'item' implicitly has an 'any' type.
+✗ stories/dungeo/src/actions/say/say-action.ts(30,28): error TS2339: Property 'parsed' does not exist on type 'ValidatedCommand'.
+✗ stories/dungeo/src/actions/say/say-action.ts(45,26): error TS2339: Property 'parsed' does not exist on type 'ValidatedCommand'.
+✗ stories/dungeo/src/actions/say/say-action.ts(95,32): error TS7006: Parameter 'a' implicitly has an 'any' type.
+✗ stories/dungeo/src/actions/say/say-action.ts(180,42): error TS7006: Parameter 'e' implicitly has an 'any' type.
+✗ stories/dungeo/src/actions/say/say-action.ts(212,26): error TS7006: Parameter 'entity' implicitly has an 'any' type.
+✗ stories/dungeo/src/actions/send/send-action.ts(30,47): error TS7006: Parameter 'e' implicitly has an 'any' type.
+✗ stories/dungeo/src/actions/set-dial/set-dial-action.ts(37,29): error TS2339: Property 'parsed' does not exist on type 'ValidatedCommand'.
+✗ stories/dungeo/src/actions/talk-to-troll/talk-to-troll-action.ts(37,55): error TS7006: Parameter 'e' implicitly has an 'any' type.
+✗ stories/dungeo/src/actions/tie/tie-action.ts(121,37): error TS7006: Parameter 'e' implicitly has an 'any' type.
+✗ stories/dungeo/src/actions/tie/tie-action.ts(122,37): error TS7006: Parameter 'e' implicitly has an 'any' type.
+✗ stories/dungeo/src/actions/tie/tie-action.ts(165,31): error TS7006: Parameter 'e' implicitly has an 'any' type.
+✗ stories/dungeo/src/actions/turn-bolt/turn-bolt-action.ts(202,28): error TS7006: Parameter 'e' implicitly has an 'any' type.
+✗ stories/dungeo/src/actions/turn-bolt/turn-bolt-action.ts(211,25): error TS7006: Parameter 'e' implicitly has an 'any' type.
+✗ stories/dungeo/src/actions/turn-switch/turn-switch-action.ts(49,28): error TS7006: Parameter 'e' implicitly has an 'any' type.
+✗ stories/dungeo/src/actions/turn-switch/turn-switch-action.ts(58,31): error TS7006: Parameter 'e' implicitly has an 'any' type.
+✗ stories/dungeo/src/actions/untie/untie-action.ts(76,39): error TS7006: Parameter 'e' implicitly has an 'any' type.
+✗ stories/dungeo/src/actions/walk-through/walk-through-action.ts(56,28): error TS2339: Property 'parsed' does not exist on type 'ValidatedCommand'.
+✗ stories/dungeo/src/actions/walk-through/walk-through-action.ts(72,15): error TS2339: Property 'directObject' does not exist on type 'ValidatedCommand'.
+✗ stories/dungeo/src/actions/walk-through/walk-through-action.ts(73,30): error TS2339: Property 'directObject' does not exist on type 'ValidatedCommand'.
+✗ stories/dungeo/src/actions/walk-through/walk-through-action.ts(89,26): error TS2339: Property 'parsed' does not exist on type 'ValidatedCommand'.
+✗ stories/dungeo/src/actions/wave/wave-action.ts(38,25): error TS7006: Parameter 'item' implicitly has an 'any' type.
+✗ stories/dungeo/src/actions/wave/wave-action.ts(45,37): error TS2339: Property 'parsed' does not exist on type 'ValidatedCommand'.
+✗ stories/dungeo/src/actions/wave/wave-action.ts(54,54): error TS7006: Parameter 'e' implicitly has an 'any' type.
+✗ stories/dungeo/src/actions/wind/wind-action.ts(37,25): error TS7006: Parameter 'item' implicitly has an 'any' type.
+✗ stories/dungeo/src/actions/wind/wind-action.ts(63,37): error TS2339: Property 'parsed' does not exist on type 'ValidatedCommand'.
+✗ stories/dungeo/src/actions/wind/wind-action.ts(72,54): error TS7006: Parameter 'e' implicitly has an 'any' type.
+✗ stories/dungeo/src/npcs/dungeon-master/dungeon-master-behavior.ts(92,40): error TS2638: Type '{}' may represent a primitive value, which is not permitted as the right operand of the 'in' operator.
+✗ stories/dungeo/src/npcs/robot/robot-behavior.ts(69,40): error TS2638: Type '{}' may represent a primitive value, which is not permitted as the right operand of the 'in' operator.
+✗ stories/dungeo/src/npcs/thief/thief-behavior.ts(524,62): error TS7006: Parameter 'e' implicitly has an 'any' type.
+✗ stories/dungeo/src/npcs/troll/troll-behavior.ts(41,44): error TS7006: Parameter 'a' implicitly has an 'any' type.
+✗ stories/dungeo/src/regions/house-interior.ts(271,34): error TS2339: Property 'entities' does not exist on type 'IGameEvent'.
+✗ stories/dungeo/src/regions/house-interior.ts(322,34): error TS2339: Property 'entities' does not exist on type 'IGameEvent'.
+✗ stories/dungeo/src/regions/white-house.ts(323,34): error TS2339: Property 'entities' does not exist on type 'IGameEvent'.
+[@sharpee/story-reflections:local] Compiling...
+[@sharpee/story-reflections:local] ✓ Done
+[@sharpee/transcript-tester:local] Compiling...
+[@sharpee/transcript-tester:local] ✓ Done
+[@sharpee/platform-browser-en-us:local] Compiling...
+✗ packages/engine/dist/capability-dispatch-helper.d.ts(19,32): error TS2307: Cannot find module '../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/engine/dist/capability-dispatch-helper.d.ts(20,98): error TS2307: Cannot find module '../../world-model/dist/src/index' or its corresponding type declarations.
+✗ packages/engine/dist/capability-dispatch-helper.d.ts(21,49): error TS2307: Cannot find module '../../stdlib/dist/src/index' or its corresponding type declarations.
+✗ packages/engine/dist/command-executor.d.ts(12,51): error TS2307: Cannot find module '../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/engine/dist/command-executor.d.ts(13,41): error TS2307: Cannot find module '../../world-model/dist/src/index' or its corresponding type declarations.
+✗ packages/engine/dist/command-executor.d.ts(14,28): error TS2307: Cannot find module '../../world-model/dist/src/index' or its corresponding type declarations.
+✗ packages/engine/dist/command-executor.d.ts(15,32): error TS2307: Cannot find module '../../event-processor/dist/src/index' or its corresponding type declarations.
+✗ packages/engine/dist/command-executor.d.ts(16,32): error TS2307: Cannot find module '../../stdlib/dist/src/index' or its corresponding type declarations.
+✗ packages/engine/dist/game-engine.d.ts(6,38): error TS2307: Cannot find module '../../world-model/dist/src/index' or its corresponding type declarations.
+✗ packages/engine/dist/game-engine.d.ts(7,32): error TS2307: Cannot find module '../../event-processor/dist/src/index' or its corresponding type declarations.
+✗ packages/engine/dist/game-engine.d.ts(8,44): error TS2307: Cannot find module '../../stdlib/dist/src/index' or its corresponding type declarations.
+✗ packages/engine/dist/game-engine.d.ts(9,34): error TS2307: Cannot find module '../../if-domain/dist/src/index' or its corresponding type declarations.
+✗ packages/engine/dist/game-engine.d.ts(10,30): error TS2307: Cannot find module '../../text-service/dist/src/index' or its corresponding type declarations.
+✗ packages/engine/dist/game-engine.d.ts(11,73): error TS2307: Cannot find module '../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/engine/dist/game-engine.d.ts(12,32): error TS2307: Cannot find module '../../plugins/dist/src/index' or its corresponding type declarations.
+✗ packages/engine/dist/index.d.ts(19,63): error TS2307: Cannot find module '../../plugins/dist/src/index' or its corresponding type declarations.
+✗ packages/engine/dist/narrative/narrative-settings.d.ts(7,28): error TS2307: Cannot find module '../../../world-model/dist/src/index' or its corresponding type declarations.
+✗ packages/engine/dist/parser-interface.d.ts(8,61): error TS2307: Cannot find module '../../world-model/dist/src/index' or its corresponding type declarations.
+✗ packages/engine/dist/parser-interface.d.ts(9,37): error TS2307: Cannot find module '../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/engine/dist/platform-operations.d.ts(7,89): error TS2307: Cannot find module '../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/engine/dist/platform-operations.d.ts(8,30): error TS2307: Cannot find module '../../world-model/dist/src/index' or its corresponding type declarations.
+✗ packages/engine/dist/save-restore-service.d.ts(7,28): error TS2307: Cannot find module '../../world-model/dist/src/index' or its corresponding type declarations.
+✗ packages/engine/dist/save-restore-service.d.ts(8,66): error TS2307: Cannot find module '../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/engine/dist/save-restore-service.d.ts(9,32): error TS2307: Cannot find module '../../plugins/dist/src/index' or its corresponding type declarations.
+✗ packages/engine/dist/shared-data-keys.d.ts(10,37): error TS2307: Cannot find module '../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/engine/dist/shared-data-keys.d.ts(11,31): error TS2307: Cannot find module '../../world-model/dist/src/index' or its corresponding type declarations.
+✗ packages/engine/dist/shared-data-keys.d.ts(12,39): error TS2307: Cannot find module '../../stdlib/dist/src/index' or its corresponding type declarations.
+✗ packages/engine/dist/story.d.ts(4,70): error TS2307: Cannot find module '../../world-model/dist/src/index' or its corresponding type declarations.
+✗ packages/engine/dist/story.d.ts(5,34): error TS2307: Cannot find module '../../if-domain/dist/src/index' or its corresponding type declarations.
+✗ packages/engine/dist/story.d.ts(6,24): error TS2307: Cannot find module '../../stdlib/dist/src/index' or its corresponding type declarations.
+✗ packages/engine/dist/story.d.ts(7,32): error TS2307: Cannot find module '../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/engine/dist/turn-event-processor.d.ts(7,70): error TS2307: Cannot find module '../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/engine/dist/turn-event-processor.d.ts(8,38): error TS2307: Cannot find module '../../world-model/dist/src/index' or its corresponding type declarations.
+✗ packages/engine/dist/turn-event-processor.d.ts(9,36): error TS2307: Cannot find module '../../stdlib/dist/src/index' or its corresponding type declarations.
+✗ packages/engine/dist/types.d.ts(6,32): error TS2307: Cannot find module '../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/engine/dist/types.d.ts(7,61): error TS2307: Cannot find module '../../world-model/dist/src/index' or its corresponding type declarations.
+✗ packages/engine/dist/types.d.ts(8,43): error TS2307: Cannot find module '../../stdlib/dist/src/index' or its corresponding type declarations.
+✗ packages/engine/dist/vocabulary-manager.d.ts(8,38): error TS2307: Cannot find module '../../world-model/dist/src/index' or its corresponding type declarations.
+✗ packages/extensions/testing/dist/annotations/context.d.ts(6,33): error TS2307: Cannot find module '../../../../world-model/dist/src/index' or its corresponding type declarations.
+✗ packages/extensions/testing/dist/checkpoints/serializer.d.ts(7,33): error TS2307: Cannot find module '../../../../world-model/dist/src/index' or its corresponding type declarations.
+✗ packages/extensions/testing/dist/context/debug-context.d.ts(7,43): error TS2307: Cannot find module '../../../../world-model/dist/src/index' or its corresponding type declarations.
+✗ packages/extensions/testing/dist/extension.d.ts(7,33): error TS2307: Cannot find module '../../../world-model/dist/src/index' or its corresponding type declarations.
+✗ packages/extensions/testing/dist/types.d.ts(6,56): error TS2307: Cannot find module '../../../world-model/dist/src/index' or its corresponding type declarations.
+✗ packages/if-domain/dist/contracts.d.ts(4,41): error TS2307: Cannot find module '../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/if-domain/dist/events.d.ts(108,37): error TS2307: Cannot find module '../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/if-domain/dist/grammar/grammar-builder.d.ts(5,25): error TS2307: Cannot find module '../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/if-domain/dist/parser-contracts/parser-types.d.ts(8,35): error TS2307: Cannot find module '../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/if-domain/dist/sequencing.d.ts(4,32): error TS2307: Cannot find module '../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/lang-en-us/dist/language-provider.d.ts(7,132): error TS2307: Cannot find module '../../if-domain/dist/src/index' or its corresponding type declarations.
+✗ packages/platforms/browser-en-us/src/browser-output.ts(7,41): error TS2307: Cannot find module '@sharpee/text-service-browser' or its corresponding type declarations.
+✗ packages/platforms/browser-en-us/src/browser-output.ts(37,38): error TS2339: Property 'name' does not exist on type 'unknown'.
+✗ packages/platforms/browser-en-us/src/browser-output.ts(37,58): error TS2339: Property 'location' does not exist on type 'unknown'.
+✗ packages/platforms/browser-en-us/src/browser-output.ts(42,38): error TS2339: Property 'score' does not exist on type 'unknown'.
+✗ packages/plugin-npc/dist/npc-plugin.d.ts(7,32): error TS2307: Cannot find module '../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/plugin-npc/dist/npc-plugin.d.ts(8,47): error TS2307: Cannot find module '../../plugins/dist/src/index' or its corresponding type declarations.
+✗ packages/plugin-npc/dist/npc-plugin.d.ts(9,29): error TS2307: Cannot find module '../../stdlib/dist/src/index' or its corresponding type declarations.
+✗ packages/plugin-scheduler/dist/scheduler-plugin.d.ts(7,32): error TS2307: Cannot find module '../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/plugin-scheduler/dist/scheduler-plugin.d.ts(8,47): error TS2307: Cannot find module '../../plugins/dist/src/index' or its corresponding type declarations.
+✗ packages/plugin-scheduler/dist/scheduler-service.d.ts(10,42): error TS2307: Cannot find module '../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/plugin-scheduler/dist/scheduler-service.d.ts(11,28): error TS2307: Cannot find module '../../world-model/dist/src/index' or its corresponding type declarations.
+✗ packages/plugin-scheduler/dist/seeded-random.d.ts(6,50): error TS2307: Cannot find module '../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/plugin-scheduler/dist/types.d.ts(7,56): error TS2307: Cannot find module '../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/plugin-scheduler/dist/types.d.ts(8,28): error TS2307: Cannot find module '../../world-model/dist/src/index' or its corresponding type declarations.
+✗ packages/plugin-scheduler/dist/types.d.ts(9,30): error TS2307: Cannot find module '../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/plugin-state-machine/dist/effect-executor.d.ts(4,42): error TS2307: Cannot find module '../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/plugin-state-machine/dist/effect-executor.d.ts(5,28): error TS2307: Cannot find module '../../world-model/dist/src/index' or its corresponding type declarations.
+✗ packages/plugin-state-machine/dist/guard-evaluator.d.ts(4,26): error TS2307: Cannot find module '../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/plugin-state-machine/dist/guard-evaluator.d.ts(5,28): error TS2307: Cannot find module '../../world-model/dist/src/index' or its corresponding type declarations.
+✗ packages/plugin-state-machine/dist/state-machine-plugin.d.ts(7,32): error TS2307: Cannot find module '../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/plugin-state-machine/dist/state-machine-plugin.d.ts(8,47): error TS2307: Cannot find module '../../plugins/dist/src/index' or its corresponding type declarations.
+✗ packages/plugin-state-machine/dist/state-machine-runtime.d.ts(6,32): error TS2307: Cannot find module '../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/plugin-state-machine/dist/types.d.ts(6,26): error TS2307: Cannot find module '../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/plugin-state-machine/dist/types.d.ts(7,28): error TS2307: Cannot find module '../../world-model/dist/src/index' or its corresponding type declarations.
+✗ packages/plugins/dist/turn-plugin-context.d.ts(1,56): error TS2307: Cannot find module '../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/plugins/dist/turn-plugin-context.d.ts(2,28): error TS2307: Cannot find module '../../world-model/dist/src/index' or its corresponding type declarations.
+✗ packages/plugins/dist/turn-plugin.d.ts(1,32): error TS2307: Cannot find module '../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/actions/author/trace.d.ts(18,32): error TS2307: Cannot find module '../../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/actions/base/snapshot-utils.d.ts(7,38): error TS2307: Cannot find module '../../../../world-model/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/actions/context.d.ts(6,74): error TS2307: Cannot find module '../../../world-model/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/actions/context.d.ts(8,32): error TS2307: Cannot find module '../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/actions/enhanced-context.d.ts(7,38): error TS2307: Cannot find module '../../../world-model/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/actions/enhanced-types.d.ts(8,32): error TS2307: Cannot find module '../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/actions/enhanced-types.d.ts(9,38): error TS2307: Cannot find module '../../../world-model/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/actions/index.d.ts(13,29): error TS2307: Cannot find module '../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/actions/meta-action.d.ts(15,32): error TS2307: Cannot find module '../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/actions/registry.d.ts(8,34): error TS2307: Cannot find module '../../../if-domain/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/actions/standard/attacking/attacking-events.d.ts(4,26): error TS2307: Cannot find module '../../../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/actions/standard/attacking/attacking-types.d.ts(4,26): error TS2307: Cannot find module '../../../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/actions/standard/climbing/climbing-events.d.ts(4,26): error TS2307: Cannot find module '../../../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/actions/standard/drinking/drinking-events.d.ts(4,26): error TS2307: Cannot find module '../../../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/actions/standard/dropping/dropping-events.d.ts(6,26): error TS2307: Cannot find module '../../../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/actions/standard/eating/eating-events.d.ts(4,26): error TS2307: Cannot find module '../../../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/actions/standard/entering/entering-events.d.ts(4,26): error TS2307: Cannot find module '../../../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/actions/standard/examining/examining-events.d.ts(6,26): error TS2307: Cannot find module '../../../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/actions/standard/exiting/exiting-events.d.ts(4,26): error TS2307: Cannot find module '../../../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/actions/standard/going/going-events.d.ts(6,26): error TS2307: Cannot find module '../../../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/actions/standard/going/going.d.ts(14,83): error TS2307: Cannot find module '../../../../../world-model/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/actions/standard/listening/listening-events.d.ts(4,26): error TS2307: Cannot find module '../../../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/actions/standard/locking/locking-events.d.ts(6,26): error TS2307: Cannot find module '../../../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/actions/standard/opening/opening-events.d.ts(7,26): error TS2307: Cannot find module '../../../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/actions/standard/pulling/pulling-events.d.ts(4,26): error TS2307: Cannot find module '../../../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/actions/standard/pushing/pushing-events.d.ts(4,26): error TS2307: Cannot find module '../../../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/actions/standard/reading/reading-events.d.ts(5,32): error TS2307: Cannot find module '../../../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/actions/standard/searching/searching-events.d.ts(4,26): error TS2307: Cannot find module '../../../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/actions/standard/sleeping/sleeping-events.d.ts(4,26): error TS2307: Cannot find module '../../../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/actions/standard/smelling/smelling-events.d.ts(4,26): error TS2307: Cannot find module '../../../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/actions/standard/switching_off/switching_off-events.d.ts(4,26): error TS2307: Cannot find module '../../../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/actions/standard/switching_on/switching_on-events.d.ts(4,26): error TS2307: Cannot find module '../../../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/actions/standard/taking/taking-events.d.ts(6,26): error TS2307: Cannot find module '../../../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/actions/standard/taking_off/taking-off-events.d.ts(4,26): error TS2307: Cannot find module '../../../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/actions/standard/talking/talking-events.d.ts(4,26): error TS2307: Cannot find module '../../../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/actions/standard/touching/touching-events.d.ts(4,26): error TS2307: Cannot find module '../../../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/actions/standard/unlocking/unlocking-events.d.ts(6,26): error TS2307: Cannot find module '../../../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/actions/standard/waiting/waiting-events.d.ts(4,26): error TS2307: Cannot find module '../../../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/actions/standard/wearing/wearing-events.d.ts(4,26): error TS2307: Cannot find module '../../../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/capabilities/command-history.d.ts(5,35): error TS2307: Cannot find module '../../../world-model/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/capabilities/conversation.d.ts(4,35): error TS2307: Cannot find module '../../../world-model/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/capabilities/debug.d.ts(7,35): error TS2307: Cannot find module '../../../world-model/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/capabilities/game-meta.d.ts(4,35): error TS2307: Cannot find module '../../../world-model/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/capabilities/save-restore.d.ts(4,35): error TS2307: Cannot find module '../../../world-model/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/capabilities/scoring.d.ts(4,35): error TS2307: Cannot find module '../../../world-model/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/chains/index.d.ts(31,28): error TS2307: Cannot find module '../../../world-model/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/chains/opened-revealed.d.ts(14,32): error TS2307: Cannot find module '../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/chains/opened-revealed.d.ts(15,29): error TS2307: Cannot find module '../../../world-model/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/combat/combat-service.d.ts(6,40): error TS2307: Cannot find module '../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/combat/combat-service.d.ts(7,38): error TS2307: Cannot find module '../../../world-model/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/events/common-patterns.d.ts(8,26): error TS2307: Cannot find module '../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/events/event-registry.d.ts(9,31): error TS2307: Cannot find module '../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/events/event-utils.d.ts(7,26): error TS2307: Cannot find module '../../../world-model/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/events/event-utils.d.ts(8,26): error TS2307: Cannot find module '../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/inference/implicit-inference.d.ts(11,38): error TS2307: Cannot find module '../../../world-model/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/npc/npc-service.d.ts(6,56): error TS2307: Cannot find module '../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/npc/npc-service.d.ts(7,28): error TS2307: Cannot find module '../../../world-model/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/npc/types.d.ts(6,56): error TS2307: Cannot find module '../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/npc/types.d.ts(7,38): error TS2307: Cannot find module '../../../world-model/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/parser/index.d.ts(7,460): error TS2307: Cannot find module '../../../if-domain/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/query-handlers/quit-handler.d.ts(7,62): error TS2307: Cannot find module '../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/query-handlers/restart-handler.d.ts(7,62): error TS2307: Cannot find module '../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/scope/scope-resolver.d.ts(7,38): error TS2307: Cannot find module '../../../world-model/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/scope/types.d.ts(4,26): error TS2307: Cannot find module '../../../world-model/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/scope/witness-system.d.ts(8,28): error TS2307: Cannot find module '../../../world-model/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/services/PerceptionService.d.ts(10,32): error TS2307: Cannot find module '../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/services/PerceptionService.d.ts(11,39): error TS2307: Cannot find module '../../../world-model/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/services/PerceptionService.d.ts(12,95): error TS2307: Cannot find module '../../../if-services/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/services/PerceptionService.d.ts(13,48): error TS2307: Cannot find module '../../../if-services/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/services/scoring/scoring-event-processor.d.ts(14,29): error TS2307: Cannot find module '../../../../world-model/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/services/scoring/scoring-event-processor.d.ts(15,32): error TS2307: Cannot find module '../../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/services/scoring/scoring-service.d.ts(12,29): error TS2307: Cannot find module '../../../../world-model/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/validation/command-validator.d.ts(7,64): error TS2307: Cannot find module '../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/validation/command-validator.d.ts(8,107): error TS2307: Cannot find module '../../../world-model/dist/src/index' or its corresponding type declarations.
+✗ packages/stdlib/dist/validation/types.d.ts(6,64): error TS2307: Cannot find module '../../../world-model/dist/src/index' or its corresponding type declarations.
+✗ packages/text-service/dist/cli-renderer.d.ts(9,33): error TS2307: Cannot find module '../../text-blocks/dist/src/index' or its corresponding type declarations.
+✗ packages/text-service/dist/decoration-parser.d.ts(15,34): error TS2307: Cannot find module '../../text-blocks/dist/src/index' or its corresponding type declarations.
+✗ packages/text-service/dist/handlers/action.d.ts(8,33): error TS2307: Cannot find module '../../../text-blocks/dist/src/index' or its corresponding type declarations.
+✗ packages/text-service/dist/handlers/action.d.ts(9,37): error TS2307: Cannot find module '../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/text-service/dist/handlers/generic.d.ts(8,33): error TS2307: Cannot find module '../../../text-blocks/dist/src/index' or its corresponding type declarations.
+✗ packages/text-service/dist/handlers/generic.d.ts(9,37): error TS2307: Cannot find module '../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/text-service/dist/handlers/revealed.d.ts(9,33): error TS2307: Cannot find module '../../../text-blocks/dist/src/index' or its corresponding type declarations.
+✗ packages/text-service/dist/handlers/revealed.d.ts(10,37): error TS2307: Cannot find module '../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/text-service/dist/handlers/room.d.ts(12,33): error TS2307: Cannot find module '../../../text-blocks/dist/src/index' or its corresponding type declarations.
+✗ packages/text-service/dist/handlers/room.d.ts(13,37): error TS2307: Cannot find module '../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/text-service/dist/handlers/types.d.ts(6,33): error TS2307: Cannot find module '../../../text-blocks/dist/src/index' or its corresponding type declarations.
+✗ packages/text-service/dist/handlers/types.d.ts(7,39): error TS2307: Cannot find module '../../../if-domain/dist/src/index' or its corresponding type declarations.
+✗ packages/text-service/dist/handlers/types.d.ts(8,37): error TS2307: Cannot find module '../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/text-service/dist/index.d.ts(29,59): error TS2307: Cannot find module '../../text-blocks/dist/src/index' or its corresponding type declarations.
+✗ packages/text-service/dist/index.d.ts(30,160): error TS2307: Cannot find module '../../text-blocks/dist/src/index' or its corresponding type declarations.
+✗ packages/text-service/dist/stages/assemble.d.ts(9,33): error TS2307: Cannot find module '../../../text-blocks/dist/src/index' or its corresponding type declarations.
+✗ packages/text-service/dist/stages/filter.d.ts(9,37): error TS2307: Cannot find module '../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/text-service/dist/stages/sort.d.ts(15,37): error TS2307: Cannot find module '../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/text-service/dist/text-service.d.ts(15,33): error TS2307: Cannot find module '../../text-blocks/dist/src/index' or its corresponding type declarations.
+✗ packages/text-service/dist/text-service.d.ts(16,39): error TS2307: Cannot find module '../../if-domain/dist/src/index' or its corresponding type declarations.
+✗ packages/text-service/dist/text-service.d.ts(17,37): error TS2307: Cannot find module '../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/world-model/dist/behaviors/attack.d.ts(8,26): error TS2307: Cannot find module '../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/world-model/dist/constants/if-events.d.ts(4,77): error TS2307: Cannot find module '../../../if-domain/dist/src/index' or its corresponding type declarations.
+✗ packages/world-model/dist/entities/if-entity.d.ts(1,58): error TS2307: Cannot find module '../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/world-model/dist/events/types.d.ts(7,37): error TS2307: Cannot find module '../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/world-model/dist/interfaces/command-executor.d.ts(4,37): error TS2307: Cannot find module '../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/world-model/dist/interfaces/command-processor.d.ts(4,37): error TS2307: Cannot find module '../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/world-model/dist/interfaces/command-validator.d.ts(5,29): error TS2307: Cannot find module '../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/world-model/dist/traits/actor/actorBehavior.d.ts(5,26): error TS2307: Cannot find module '../../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/world-model/dist/traits/breakable/breakableBehavior.d.ts(7,26): error TS2307: Cannot find module '../../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/world-model/dist/traits/combatant/combatantBehavior.d.ts(7,26): error TS2307: Cannot find module '../../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/world-model/dist/traits/destructible/destructibleBehavior.d.ts(7,26): error TS2307: Cannot find module '../../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/world-model/dist/traits/edible/edibleBehavior.d.ts(4,32): error TS2307: Cannot find module '../../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/world-model/dist/traits/exit/exitBehavior.d.ts(3,32): error TS2307: Cannot find module '../../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/world-model/dist/traits/lockable/lockableBehavior.d.ts(3,26): error TS2307: Cannot find module '../../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/world-model/dist/traits/lockable/lockableTrait.d.ts(1,26): error TS2307: Cannot find module '../../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/world-model/dist/traits/npc/npcTrait.d.ts(8,26): error TS2307: Cannot find module '../../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/world-model/dist/traits/readable/readableBehavior.d.ts(2,32): error TS2307: Cannot find module '../../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/world-model/dist/traits/room/roomBehavior.d.ts(4,32): error TS2307: Cannot find module '../../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/world-model/dist/traits/switchable/switchableBehavior.d.ts(3,32): error TS2307: Cannot find module '../../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/world-model/dist/world/index.d.ts(2,120): error TS2307: Cannot find module '../../../if-domain/dist/src/index' or its corresponding type declarations.
+✗ packages/world-model/dist/world/WorldModel.d.ts(5,54): error TS2307: Cannot find module '../../../core/dist/src/index' or its corresponding type declarations.
+✗ packages/world-model/dist/world/WorldModel.d.ts(8,122): error TS2307: Cannot find module '../../../if-domain/dist/src/index' or its corresponding type declarations.
+✗ packages/world-model/dist/world/WorldModel.d.ts(40,71): error TS2307: Cannot find module '../../../if-domain/dist/src/index' or its corresponding type declarations.
+[@sharpee/platform-cli-en-us:local] Compiling...
+[@sharpee/platform-cli-en-us:local] ✓ Done
+✗ Build completed with errors

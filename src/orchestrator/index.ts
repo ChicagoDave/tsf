@@ -15,16 +15,37 @@ import { computeCacheKey, isCached, recordBuild, cleanCache } from '../cache';
 import { createWatcher } from '../watcher';
 import * as os from 'os';
 import * as logger from '../utils/logger';
+import { generatePublishManifest } from '../sync/package-json';
+
+export function getPublishStagingDir(): string {
+  return process.env.TSF_PUBLISH_DIR || path.join(os.homedir(), '.tsf-publish');
+}
 
 export async function build(options: BuildOptions): Promise<boolean> {
   const ctx = loadBuildContext(options);
   if (!ctx) return false;
 
-  // Filter targets by CLI flags
-  const activeTargets = filterTargets(ctx.targets, options);
-  if (activeTargets.length === 0) {
-    logger.warn('No targets to build. Use --all, --target, or --condition to select targets.');
-    return true;
+  // In --npm mode, select publish targets and override outDirs to staging
+  const isNpmBuild = !!options.npm;
+  const npmStagingDir = isNpmBuild ? getPublishStagingDir() : undefined;
+  let activeTargets: ResolvedTarget[];
+
+  if (isNpmBuild) {
+    const publishTargets = ctx.targets.filter(
+      (t) => t.config.condition === 'publish' || t.config.imports === 'relative',
+    );
+    if (publishTargets.length === 0) {
+      logger.warn('No publish targets found. Add targets with condition: "publish" or imports: "relative".');
+      return true;
+    }
+    activeTargets = publishTargets;
+    logger.info(`npm build → staging to ${npmStagingDir}`);
+  } else {
+    activeTargets = filterTargets(ctx.targets, options);
+    if (activeTargets.length === 0) {
+      logger.warn('No targets to build. Use --all, --target, or --condition to select targets.');
+      return true;
+    }
   }
 
   logger.info(`Building ${activeTargets.map((t) => t.name).join(', ')} across ${ctx.packages.size} package(s)`);
@@ -84,9 +105,17 @@ export async function build(options: BuildOptions): Promise<boolean> {
           targetConfig = { ...target.config, ...merged };
         }
 
+        let finalConfig = { ...targetConfig, imports: targetConfig.imports ?? 'preserve' };
+
+        // In npm mode, redirect output to staging dir and force relative imports
+        if (isNpmBuild && npmStagingDir) {
+          const pkgStagingDir = path.join(npmStagingDir, pkg.name.replace(/^@/, ''));
+          finalConfig = { ...finalConfig, outDir: pkgStagingDir, imports: 'relative' };
+        }
+
         const resolvedTarget: ResolvedTarget = {
           name: target.name,
-          config: { ...targetConfig, imports: targetConfig.imports ?? 'preserve' },
+          config: finalConfig,
         };
 
         workItems.push({ pkg, target: resolvedTarget });
@@ -106,10 +135,35 @@ export async function build(options: BuildOptions): Promise<boolean> {
     }
   }
 
+  // In npm mode, generate clean package.json + copy assets to staging
+  if (isNpmBuild && npmStagingDir && !hasErrors) {
+    for (const pkg of ctx.packages.values()) {
+      const pkgStagingDir = path.join(npmStagingDir, pkg.name.replace(/^@/, ''));
+      if (!fs.existsSync(pkgStagingDir)) continue; // wasn't built (skipped)
+
+      // Generate clean package.json
+      const manifest = generatePublishManifest(pkg);
+      fs.writeFileSync(
+        path.join(pkgStagingDir, 'package.json'),
+        JSON.stringify(manifest, null, 2) + '\n',
+        'utf-8',
+      );
+      logger.verbose('Generated publish manifest', pkg.name);
+
+      // Copy README, LICENSE if present
+      for (const file of ['README.md', 'README', 'LICENSE', 'LICENSE.md']) {
+        const src = path.join(pkg.path, file);
+        if (fs.existsSync(src)) {
+          fs.copyFileSync(src, path.join(pkgStagingDir, file));
+        }
+      }
+    }
+  }
+
   if (hasErrors) {
     logger.error('Build completed with errors');
   } else {
-    logger.success('Build complete');
+    logger.success(isNpmBuild ? `npm build complete → ${npmStagingDir}` : 'Build complete');
   }
 
   return !hasErrors;
