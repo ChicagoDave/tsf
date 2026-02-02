@@ -42,20 +42,20 @@ The `local` target keeps workspace imports intact for development. The `npm` tar
 
 Your source code:
 ```typescript
-import { Engine } from '@myorg/engine';
-import { WorldModel } from '@myorg/world-model';
+import { createLogger } from '@myorg/logger';
+import { validate } from '@myorg/schema';
 ```
 
 Local build (`imports: "preserve"`) — unchanged:
 ```javascript
-const { Engine } = require("@myorg/engine");
-const { WorldModel } = require("@myorg/world-model");
+const { createLogger } = require("@myorg/logger");
+const { validate } = require("@myorg/schema");
 ```
 
 npm build (`imports: "relative"`) — rewritten:
 ```javascript
-const { Engine } = require("../engine/dist-npm/index.js");
-const { WorldModel } = require("../world-model/dist-npm/index.js");
+const { createLogger } = require("../logger/dist-npm/index.js");
+const { validate } = require("../schema/dist-npm/index.js");
 ```
 
 Declarations are rewritten too. No manual work. No build script.
