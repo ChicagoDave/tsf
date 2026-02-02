@@ -1,40 +1,19 @@
 # tsf
 
-Multi-target TypeScript build tool for monorepos.
+Publish workspace packages to npm without rewriting your imports by hand.
 
-Compiles one TypeScript source into multiple output targets with per-target import resolution, module format, and declaration handling.
+tsf is a multi-target TypeScript build tool for monorepos. It compiles one source into multiple outputs — rewriting `@scope/pkg` workspace imports to relative paths for npm, preserving them for local dev, and bundling them for browsers. Declarations included.
 
 ## The Problem
 
-TypeScript monorepos need different builds for different consumers:
-- **Local development**: workspace imports (`@scope/pkg`) resolved via symlinks
-- **npm publish**: workspace imports rewritten to relative paths or peer dependencies
-- **Bundling**: all imports resolved and inlined into a single file
-- **Browser**: ESM output with bundled or mapped imports
+You have a TypeScript monorepo. Locally, `import { Thing } from '@scope/core'` resolves via workspace symlinks. But when you `npm publish`, that import means nothing — consumers need real relative paths.
 
-No existing tool handles the full matrix. tsf does.
+Today your options are:
+- **A custom build script** that rewrites imports, manages declarations, and coordinates builds across packages (often hundreds of lines of bash)
+- **A bundler** that inlines everything, losing tree-shaking for your consumers
+- **Manual parallel tsconfig files** per output target, kept in sync by hand
 
-## Install
-
-```bash
-pnpm add -D tsf
-# or
-npm install -D tsf
-```
-
-## Quick Start
-
-```bash
-tsf init          # Generate ts-forge.config.json from existing project
-tsf build         # Build default target
-tsf build --all   # Build all targets
-tsf version 1.0.0 --condition publish  # Set version on npm packages
-tsf info          # Show resolved build plan
-```
-
-## Configuration
-
-`ts-forge.config.json`:
+tsf replaces all of that with a config file:
 
 ```json
 {
@@ -56,6 +35,50 @@ tsf info          # Show resolved build plan
   }
 }
 ```
+
+The `local` target keeps workspace imports intact for development. The `npm` target rewrites them to relative paths — only for packages that have `publishConfig`. One source, two outputs.
+
+### Before and after
+
+Your source code:
+```typescript
+import { Engine } from '@myorg/engine';
+import { WorldModel } from '@myorg/world-model';
+```
+
+Local build (`imports: "preserve"`) — unchanged:
+```javascript
+const { Engine } = require("@myorg/engine");
+const { WorldModel } = require("@myorg/world-model");
+```
+
+npm build (`imports: "relative"`) — rewritten:
+```javascript
+const { Engine } = require("../engine/dist-npm/index.js");
+const { WorldModel } = require("../world-model/dist-npm/index.js");
+```
+
+Declarations are rewritten too. No manual work. No build script.
+
+## Install
+
+```bash
+pnpm add -D tsf
+# or
+npm install -D tsf
+```
+
+## Quick Start
+
+```bash
+tsf init          # Generate config from existing project
+tsf build         # Build default target
+tsf build --all   # Build all targets
+tsf version 1.0.0 --condition publish  # Set version on npm packages
+tsf info          # Show resolved build plan
+```
+
+## Configuration Reference
 
 ### Target Options
 
