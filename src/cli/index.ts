@@ -8,6 +8,7 @@ import { syncPackageJson } from '../sync/package-json';
 import { runValidation } from '../validate';
 import { setVerbose } from '../utils/logger';
 import * as logger from '../utils/logger';
+import { handleVersion } from './version';
 
 const VERSION = '0.1.0';
 
@@ -46,6 +47,9 @@ function main(): void {
       break;
     case 'gh-action':
       generateGitHubAction();
+      break;
+    case 'version':
+      handleVersion(args.slice(1));
       break;
     default:
       logger.error(`Unknown command: ${command}`);
@@ -150,6 +154,8 @@ Usage:
   ts-forge sync               Sync package.json fields from targets
   ts-forge validate           Validate build outputs
   ts-forge gh-action          Generate GitHub Actions workflow
+  ts-forge version <ver>      Set version for all packages
+  ts-forge version --bump <level>  Bump version (major|minor|patch|prerelease)
   ts-forge info               Show resolved build plan
 
 Build Options:
