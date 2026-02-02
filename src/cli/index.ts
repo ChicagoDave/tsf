@@ -9,6 +9,8 @@ import { runValidation } from '../validate';
 import { setVerbose } from '../utils/logger';
 import * as logger from '../utils/logger';
 import { handleVersion } from './version';
+import { handlePublish } from './publish';
+import { handleList } from './list';
 
 const VERSION = '0.1.0';
 
@@ -61,6 +63,14 @@ function main(): void {
     case 'version':
       if (wantsHelp) { printVersionHelp(); return; }
       handleVersion(subArgs);
+      break;
+    case 'publish':
+      if (wantsHelp) { printPublishHelp(); return; }
+      handlePublish(subArgs);
+      break;
+    case 'list':
+      if (wantsHelp) { printListHelp(); return; }
+      handleList(subArgs);
       break;
     default:
       logger.error(`Unknown command: ${command}`);
@@ -202,6 +212,50 @@ Examples:
 `.trim());
 }
 
+function printListHelp(): void {
+  console.log(`
+ts-forge list — List workspace packages, one per line.
+
+Usage:
+  ts-forge list [options]
+
+Output is in dependency order. Useful for scripting and verifying which
+packages match a condition.
+
+Options:
+  --condition <name>    Only packages matching target condition (e.g., publish)
+  --filter <name>       Restrict to specific package(s), repeatable
+
+Examples:
+  ts-forge list
+  ts-forge list --condition publish
+`.trim());
+}
+
+function printPublishHelp(): void {
+  console.log(`
+ts-forge publish — Publish workspace packages to npm in dependency order.
+
+Usage:
+  ts-forge publish [options]
+
+Publishes packages that have publishConfig in their package.json.
+Checks npm login before publishing. Publishes in dependency order.
+
+Options:
+  --tag <tag>           npm dist-tag (default: latest)
+  --condition <name>    Only packages matching target condition (e.g., publish)
+  --filter <name>       Restrict to specific package(s), repeatable
+  --dry-run             Pass --dry-run to npm publish
+
+Examples:
+  ts-forge publish
+  ts-forge publish --tag beta
+  ts-forge publish --dry-run
+  ts-forge publish --filter @myorg/core --filter @myorg/utils
+`.trim());
+}
+
 function printValidateHelp(): void {
   console.log(`
 ts-forge validate — Verify build outputs.
@@ -228,6 +282,8 @@ Usage:
   ts-forge gh-action          Generate GitHub Actions workflow
   ts-forge version <ver>      Set version for all packages
   ts-forge version --bump <level>  Bump version (major|minor|patch|prerelease)
+  ts-forge publish            Publish packages to npm
+  ts-forge list               List packages (one per line)
   ts-forge info               Show resolved build plan
 
 Build Options:

@@ -35,6 +35,15 @@ export function computeCacheKey(
     hash.update(fs.readFileSync(file));
   }
 
+  // Hash package.json version
+  const pkgJsonPath = path.join(pkg.path, 'package.json');
+  if (fs.existsSync(pkgJsonPath)) {
+    try {
+      const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf-8'));
+      hash.update(`version:${pkgJson.version || ''}\n`);
+    } catch { /* ignore */ }
+  }
+
   // Hash tsconfig
   const tsconfigPath = path.resolve(pkg.path, pkg.tsconfig);
   if (fs.existsSync(tsconfigPath)) {

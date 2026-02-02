@@ -229,7 +229,7 @@ function filterTargets(targets: ResolvedTarget[], options: BuildOptions): Resolv
 
   if (options.condition && options.condition.length > 0) {
     return targets.filter(
-      (t) => !t.config.condition || options.condition!.includes(t.config.condition),
+      (t) => t.config.condition && options.condition!.includes(t.config.condition),
     );
   }
 
