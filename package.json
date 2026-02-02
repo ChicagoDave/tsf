@@ -1,0 +1,34 @@
+{
+  "name": "nsf",
+  "version": "0.1.0",
+  "description": "Multi-target TypeScript build tool for monorepos",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "nsf": "dist/cli/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest",
+    "dev": "tsc --watch"
+  },
+  "keywords": [
+    "typescript",
+    "build",
+    "monorepo",
+    "multi-target",
+    "cjs",
+    "esm"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "typescript": "^5.7.0"
+  },
+  "devDependencies": {
+    "vitest": "^3.0.0",
+    "@types/node": "^22.0.0"
+  }
+}
