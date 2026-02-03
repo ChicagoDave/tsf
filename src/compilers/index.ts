@@ -31,6 +31,7 @@ export type CompileFn = (
   target: ResolvedTarget,
   rootDir: string,
   workspacePackages?: Map<string, PackageInfo>,
+  npmStagingDir?: string,
 ) => CompileResult;
 
 /**

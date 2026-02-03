@@ -167,7 +167,12 @@ function rewriteSpecifier(
 
   if (target.config.relativeMode === 'peer') return specifier;
 
-  const depOutDir = path.resolve(depPkg.path, target.config.outDir!);
+  // For npm/staging builds, outDir is an absolute path like ~/.tsf-publish/scope/pkg.
+  // Each dep has its own staging dir, so derive it from the current outDir pattern.
+  const currentOutDir = path.resolve(currentPkg.path, target.config.outDir!);
+  const depOutDir = path.isAbsolute(target.config.outDir!)
+    ? path.join(path.dirname(currentOutDir), depPkg.name.replace(/^@.*\//, ''))
+    : path.resolve(depPkg.path, target.config.outDir!);
   const depOutputEntry = getOutputEntryPoint(depPkg);
   const depOutputFile = path.join(depOutDir, depOutputEntry);
 
@@ -195,6 +200,9 @@ function getOutputEntryPoint(pkg: PackageInfo): string {
   } catch {
     // Fall back to default
   }
+
+  // Normalize: strip leading ./ so "./src" matches "src/index.ts"
+  rootDir = rootDir.replace(/^\.\//, '');
 
   let entry = pkg.entryPoint;
   const rootDirPrefix = rootDir.replace(/\/$/, '') + '/';

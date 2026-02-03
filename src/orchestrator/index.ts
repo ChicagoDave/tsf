@@ -47,10 +47,12 @@ import { detectWorkspace } from '../resolver/workspace';
 import { resolvePackages } from '../resolver/packages';
 import { getBuildOrder } from '../resolver/graph';
 import { getCompiler, getBundler } from '../compilers';
+import { fixBrokenRelativeImports } from '../compilers/tsc';
 import { transformImports } from '../transform/imports';
 import { transformDeclarations } from '../transform/declarations';
 import { computeCacheKey, isCached, recordBuild, cleanCache } from '../cache';
 import { createWatcher } from '../watcher';
+import { globSync } from 'glob';
 import * as os from 'os';
 import * as logger from '../utils/logger';
 import { generatePublishManifest } from '../sync/package-json';
@@ -177,7 +179,7 @@ export async function build(options: BuildOptions): Promise<boolean> {
 
     // Execute work items with concurrency limit
     const results = await runWithConcurrency(maxParallel, workItems, (item) => {
-      return buildPackageTarget(item.pkg, item.target, ctx, cacheDir, useCache, cacheKeys);
+      return buildPackageTarget(item.pkg, item.target, ctx, cacheDir, useCache, cacheKeys, npmStagingDir);
     });
 
     for (const result of results) {
@@ -210,6 +212,25 @@ export async function build(options: BuildOptions): Promise<boolean> {
           fs.copyFileSync(src, path.join(pkgStagingDir, file));
         }
       }
+
+      // Copy assets defined in package ts-forge.json
+      const pkgOverride = loadPackageOverride(pkg.path);
+      if (pkgOverride?.assets?.length) {
+        for (const pattern of pkgOverride.assets) {
+          const matches = globSync(pattern, { cwd: pkg.path, nodir: true });
+          for (const match of matches) {
+            const src = path.join(pkg.path, match);
+            const dest = path.join(pkgStagingDir, match);
+            fs.mkdirSync(path.dirname(dest), { recursive: true });
+            fs.copyFileSync(src, dest);
+          }
+        }
+        logger.verbose(`Copied assets (${pkgOverride.assets.join(', ')})`, pkg.name);
+      }
+
+      // Final pass: fix any relative imports that are broken in the staging layout
+      // (e.g. ../../package.json that should be ../package.json after rootDir stripping)
+      fixBrokenRelativeImports(pkgStagingDir, pkg.name);
     }
   }
 
@@ -357,6 +378,7 @@ async function buildPackageTarget(
   cacheDir: string,
   useCache: boolean,
   cacheKeys: Map<string, string>,
+  npmStagingDir?: string,
 ): Promise<BuildItemResult> {
   const context = `${pkg.name}:${resolvedTarget.name}`;
   const id = `${pkg.name}:${resolvedTarget.name}`;
@@ -389,7 +411,7 @@ async function buildPackageTarget(
     // Transpile mode: compile then transform imports
     const compile = getCompiler(resolvedTarget.config.transpiler);
     logger.info(`Compiling...`, context);
-    result = compile(pkg, resolvedTarget, ctx.rootDir, ctx.packages);
+    result = compile(pkg, resolvedTarget, ctx.rootDir, ctx.packages, npmStagingDir);
   }
 
   if (!result.success) {

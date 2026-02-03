@@ -149,9 +149,14 @@ function rewriteSpecifier(
     return specifier;
   }
 
-  // Compute relative path from this output file to the dependency's output entry point
-  // The output path = entryPoint relative to the dep's rootDir (tsc strips rootDir prefix)
-  const depOutDir = path.resolve(depPkg.path, target.config.outDir!);
+  // Compute relative path from this output file to the dependency's output entry point.
+  // The output path = entryPoint relative to the dep's rootDir (tsc strips rootDir prefix).
+  // For npm/staging builds, outDir is an absolute path like ~/.tsf-publish/scope/pkg.
+  // Each dep has its own staging dir, so derive it from the current outDir pattern.
+  const currentOutDir = path.resolve(currentPkg.path, target.config.outDir!);
+  const depOutDir = path.isAbsolute(target.config.outDir!)
+    ? path.join(path.dirname(currentOutDir), depPkg.name.replace(/^@.*\//, ''))
+    : path.resolve(depPkg.path, target.config.outDir!);
   const depOutputEntry = getOutputEntryPoint(depPkg);
   const depOutputFile = path.join(depOutDir, depOutputEntry);
 
@@ -224,6 +229,9 @@ function getOutputEntryPoint(pkg: PackageInfo): string {
   } catch {
     // Fall back to default
   }
+
+  // Normalize: strip leading ./ so "./src" matches "src/index.ts"
+  rootDir = rootDir.replace(/^\.\//, '');
 
   let entry = pkg.entryPoint;
   // Strip rootDir prefix (e.g., "src/index.ts" with rootDir "src" → "index.ts")

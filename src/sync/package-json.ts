@@ -22,12 +22,6 @@ import type { ResolvedTarget, PackageInfo } from '../types';
 import * as logger from '../utils/logger';
 
 /**
- * Version range prefix used when resolving workspace:* to real versions.
- * Uses ^ for semver compatibility (e.g., "workspace:*" → "^0.9.87").
- */
-const VERSION_RANGE_PREFIX = '^';
-
-/**
  * Conditional export entry with Node.js-standard conditions.
  */
 interface ExportsConditions {
@@ -118,7 +112,10 @@ export function syncPackageJson(
  * fs.writeFileSync(stagingDir + '/package.json', JSON.stringify(manifest, null, 2));
  * ```
  */
-export function generatePublishManifest(pkg: PackageInfo, packages?: Map<string, PackageInfo>): Record<string, unknown> {
+export function generatePublishManifest(
+  pkg: PackageInfo,
+  workspacePackages?: Map<string, PackageInfo>,
+): Record<string, unknown> {
   const pkgJsonPath = path.join(pkg.path, 'package.json');
   const source = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf-8'));
 
@@ -137,8 +134,8 @@ export function generatePublishManifest(pkg: PackageInfo, packages?: Map<string,
     },
   };
 
-  // Resolve workspace:* to real version numbers
-  resolveWorkspaceDeps(manifest, packages);
+  // Convert workspace:* deps to real version ranges for publish
+  resolveWorkspaceDeps(manifest, workspacePackages);
 
   // Remove devDependencies entirely
   delete manifest.devDependencies;
@@ -170,109 +167,44 @@ export function generatePublishManifest(pkg: PackageInfo, packages?: Map<string,
 }
 
 /**
- * Resolves all `workspace:*` protocol dependencies to real version numbers.
- *
- * pnpm uses `workspace:*` to reference other packages in the monorepo,
- * but npm doesn't understand this protocol. This function replaces them
- * with the actual versions from the workspace packages' package.json files.
- *
- * If no packages map is provided, falls back to reading versions from disk
- * by looking for package.json in sibling directories.
- *
- * @param pkgJson - Package.json object to modify (mutated in place)
- * @param packages - Workspace packages map for version lookup
- * @returns Number of dependencies resolved
- *
- * @example
- * ```typescript
- * const resolved = resolveWorkspaceDeps(manifest, allPackages);
- * console.log(`Resolved ${resolved} workspace dependencies`);
- * ```
+ * Convert workspace:* dependencies to real version ranges for publishing.
+ * workspace:* → ^<version> using the dep's actual version from the workspace.
+ * workspace:^ → ^<version>, workspace:~ → ~<version>.
+ * Falls back to stripping if the dep version can't be resolved.
  */
-export function resolveWorkspaceDeps(
+function resolveWorkspaceDeps(
   pkgJson: Record<string, unknown>,
-  packages?: Map<string, PackageInfo>,
-): number {
-  let count = 0;
+  workspacePackages?: Map<string, PackageInfo>,
+): void {
   for (const field of ['dependencies', 'peerDependencies', 'optionalDependencies']) {
     const deps = pkgJson[field] as Record<string, string> | undefined;
     if (!deps) continue;
     for (const [name, version] of Object.entries(deps)) {
-      if (typeof version === 'string' && version.startsWith('workspace:')) {
-        const resolvedVersion = resolveWorkspaceVersion(name, version, packages);
-        if (resolvedVersion) {
-          deps[name] = resolvedVersion;
-          count++;
-        } else {
-          logger.warn(`Could not resolve workspace version for ${name} — removing`);
-          delete deps[name];
-        }
+      if (typeof version !== 'string' || !version.startsWith('workspace:')) continue;
+
+      const depPkg = workspacePackages?.get(name);
+      const depVersion = depPkg?.version;
+      if (!depVersion) {
+        delete deps[name];
+        continue;
+      }
+
+      const protocol = version.slice('workspace:'.length); // *, ^, ~, or a version
+      if (protocol === '*' || protocol === '^') {
+        deps[name] = '^' + depVersion;
+      } else if (protocol === '~') {
+        deps[name] = '~' + depVersion;
+      } else {
+        deps[name] = depVersion;
       }
     }
-    // Clean up empty dependency objects
     if (Object.keys(deps).length === 0) {
       delete pkgJson[field];
     }
   }
-  return count;
 }
 
-/**
- * Resolves a single workspace:* version specifier to a real version.
- *
- * Handles pnpm workspace protocol variants:
- * - `workspace:*` → `^<version>` (any version in workspace)
- * - `workspace:^` → `^<version>` (caret range)
- * - `workspace:~` → `~<version>` (tilde range)
- * - `workspace:<version>` → `<version>` (exact)
- */
-function resolveWorkspaceVersion(
-  depName: string,
-  workspaceSpec: string,
-  packages?: Map<string, PackageInfo>,
-): string | null {
-  // Look up the dependency's version from the packages map
-  let depVersion: string | undefined;
 
-  if (packages) {
-    const depPkg = packages.get(depName);
-    if (depPkg?.version) {
-      depVersion = depPkg.version;
-    } else if (depPkg) {
-      // PackageInfo.version might not be set — read from package.json
-      try {
-        const depPkgJson = JSON.parse(fs.readFileSync(path.join(depPkg.path, 'package.json'), 'utf-8'));
-        depVersion = depPkgJson.version;
-      } catch {
-        // fall through
-      }
-    }
-  }
-
-  if (!depVersion) return null;
-
-  // Parse the workspace protocol suffix
-  const suffix = workspaceSpec.slice('workspace:'.length);
-  switch (suffix) {
-    case '*':
-    case '^':
-      return VERSION_RANGE_PREFIX + depVersion;
-    case '~':
-      return '~' + depVersion;
-    default:
-      // workspace:1.2.3 → 1.2.3
-      return suffix || VERSION_RANGE_PREFIX + depVersion;
-  }
-}
-
-/**
- * Removes all `workspace:*` protocol dependencies from a package.json object.
- *
- * @deprecated Use resolveWorkspaceDeps instead, which converts to real versions.
- *
- * @param pkgJson - Package.json object to modify (mutated in place)
- * @returns Number of dependencies stripped
- */
 export function stripWorkspaceDeps(pkgJson: Record<string, unknown>): number {
   let count = 0;
   for (const field of ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies']) {

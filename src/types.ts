@@ -140,6 +140,7 @@ export interface DefaultConfig {
 export interface PackageOverride {
   /** Target-specific overrides; use `skip: true` to exclude a target */
   targets?: Record<string, Partial<TargetConfig> & { skip?: boolean }>;
+  assets?: string[];
 }
 
 // ============================================================================

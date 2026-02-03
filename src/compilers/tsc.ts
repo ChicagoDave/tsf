@@ -44,6 +44,7 @@ export function compile(
   target: ResolvedTarget,
   rootDir: string,
   workspacePackages?: Map<string, PackageInfo>,
+  npmStagingDir?: string,
 ): CompileResult {
   const context = `${pkg.name}:${target.name}`;
 
@@ -95,15 +96,42 @@ export function compile(
   }
 
   // Ensure workspace packages are resolvable during compilation.
-  // For npm/relative builds, skip path injection — let tsc resolve via node_modules
-  // symlinks so it emits bare specifiers (e.g. require("@sharpee/core")) that the
-  // import transformer can then rewrite. Path injection causes tsc to emit broken
-  // relative paths into the staging directory.
+  // For npm/relative builds with a staging dir, inject paths pointing at the staging
+  // directory where upstream deps have already been compiled. This lets tsc find type
+  // declarations without requiring symlinks in the source workspace. tsc still emits
+  // bare specifiers that the post-compile import transformer rewrites to relative paths.
   const isRelativeBuild = target.config.imports === 'relative';
   const currentPaths: ts.MapLike<string[]> = { ...(parsedConfig.options.paths || {}) };
 
-  // Inject workspace package paths for local builds only
-  if (workspacePackages && !isRelativeBuild) {
+  // For npm/relative builds with a staging dir, inject paths pointing at the staging
+  // directory where upstream deps have already been compiled.
+  if (workspacePackages && isRelativeBuild && npmStagingDir) {
+    let needsBaseUrl = false;
+    const transitiveDeps = getTransitiveDeps(pkg.name, workspacePackages);
+
+    for (const [depName, depPkg] of workspacePackages) {
+      if (depName === pkg.name) continue;
+      if (!transitiveDeps.has(depName)) continue;
+
+      const depStagingDir = path.join(npmStagingDir, depName.replace(/^@/, ''));
+      // Point at the staging dir's .d.ts output so tsc can resolve types.
+      // Override any existing source-pointing paths to avoid rootDir conflicts.
+      // Use paths relative to baseUrl (pkg.path) since tsc resolves paths relative to baseUrl.
+      const entryBase = getOutputEntryPoint(depPkg);
+      const dtsEntry = entryBase.replace(/\.js$/, '.d.ts');
+      const relEntry = path.relative(pkg.path, path.join(depStagingDir, dtsEntry));
+
+      currentPaths[depName] = [relEntry];
+      currentPaths[depName + '/*'] = [path.relative(pkg.path, path.join(depStagingDir, '*'))];
+      needsBaseUrl = true;
+      logger.verbose(`Added staging path: ${depName} → ${relEntry}`, context);
+    }
+
+    overrides.paths = currentPaths;
+    if (needsBaseUrl && !parsedConfig.options.baseUrl) {
+      overrides.baseUrl = pkg.path;
+    }
+  } else if (workspacePackages && !isRelativeBuild) {
     let needsBaseUrl = false;
 
     // Include transitive deps: tsc follows source paths and needs to resolve
@@ -187,6 +215,14 @@ export function compile(
     flattenWidenedOutput(outDir, rootDir, pkg, context);
   }
 
+  // For npm/relative builds, tsc may emit relative paths containing the rootDir
+  // segment in .d.ts files (e.g. "../src/index" for self-referencing re-exports).
+  // Since rootDir stripping removes that directory from output, fix these paths
+  // by resolving each import and checking if the target exists.
+  if (isRelativeBuild && outDir) {
+    fixBrokenRelativeImports(outDir, context);
+  }
+
   // Collect diagnostics
   const allDiagnostics = ts.getPreEmitDiagnostics(program).concat(emitResult.diagnostics);
   const diagnosticMessages: string[] = [];
@@ -268,7 +304,7 @@ function flattenWidenedOutput(
   // Fix relative imports that reference the pre-flattened structure.
   // After flattening, paths like "../src/index.js" should become "../index.js"
   // because the "src/" nesting no longer exists in the output.
-  fixFlattenedImports(outDir);
+  fixBrokenRelativeImports(outDir, context);
 
   // Remove the top-level nested directory (e.g., outDir/packages/)
   const topNested = path.join(outDir, relFromRoot.split(path.sep)[0]);
@@ -279,32 +315,111 @@ function flattenWidenedOutput(
 }
 
 /**
- * After flattening widened output, relative imports may still contain
- * a "src/" segment from the original nested structure. Rewrite them.
- * e.g. require("../src/index.js") → require("../index.js")
- *      require("./src/utils/foo.js") → require("./utils/foo.js")
+ * After compilation, tsc may emit relative paths in .d.ts/.js files that
+ * reference directories (like "src/") that don't exist in the output because
+ * rootDir stripping removed them. For each relative import, resolve the target
+ * path — if it doesn't exist, try removing each intermediate directory segment
+ * until a valid target is found.
+ *
+ * e.g. from "../src/index" where ../src/index.d.ts doesn't exist
+ *      but  ../index.d.ts does → rewrite to "../index"
  */
-function fixFlattenedImports(outDir: string): void {
-  const jsFiles: string[] = [];
-  collectFilesRecursive(outDir, jsFiles, ['.js', '.d.ts', '.d.ts.map']);
+export function fixBrokenRelativeImports(outDir: string, context: string): void {
+  const files: string[] = [];
+  collectFilesRecursive(outDir, files, ['.js', '.d.ts']);
 
-  for (const file of jsFiles) {
-    let content = fs.readFileSync(file, 'utf-8');
+  for (const file of files) {
+    const content = fs.readFileSync(file, 'utf-8');
+    const lines = content.split('\n');
     let changed = false;
 
-    // Match require("..."), from "...", and import("...") patterns containing /src/ segments
-    const updated = content.replace(
-      /(require\(["']|from\s+["']|import\(["'])(\.\.?\/(?:[^"']*\/)?)(src\/)/g,
-      (match, prefix, relPath, _srcSegment) => {
-        changed = true;
-        return prefix + relPath;
-      },
-    );
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+
+      // Extract specifiers from: from "...", require("..."), import("...")
+      // Walk the string character by character to find quoted specifiers after keywords
+      for (const keyword of ['from ', 'require(', 'import(']) {
+        let pos = line.indexOf(keyword);
+        while (pos !== -1) {
+          const afterKeyword = pos + keyword.length;
+          const quote = line[afterKeyword];
+          if (quote === '"' || quote === "'") {
+            const end = line.indexOf(quote, afterKeyword + 1);
+            if (end !== -1) {
+              const specifier = line.substring(afterKeyword + 1, end);
+              if (specifier.startsWith('./') || specifier.startsWith('../')) {
+                const fixed = fixSpecifierIfBroken(file, specifier);
+                if (fixed && fixed !== specifier) {
+                  lines[i] = lines[i].substring(0, afterKeyword + 1) + fixed + lines[i].substring(end);
+                  changed = true;
+                  logger.verbose(`Fixed broken import: "${specifier}" → "${fixed}"`, context);
+                }
+              }
+            }
+          }
+          pos = line.indexOf(keyword, pos + 1);
+        }
+      }
+    }
 
     if (changed) {
-      fs.writeFileSync(file, updated, 'utf-8');
+      fs.writeFileSync(file, lines.join('\n'), 'utf-8');
     }
   }
+}
+
+/**
+ * Given a specifier (e.g. "../src/index") relative to a file, check if the
+ * target exists. If not, try removing each intermediate path segment one at
+ * a time until a valid file is found.
+ */
+function fixSpecifierIfBroken(fromFile: string, specifier: string): string | null {
+  const dir = path.dirname(fromFile);
+  const extensions = ['.d.ts', '.js', '.ts', ''];
+
+  // Check if the specifier already resolves
+  const resolved = path.resolve(dir, specifier);
+  for (const ext of extensions) {
+    if (fs.existsSync(resolved + ext)) return null; // already valid
+  }
+
+  // Try removing each intermediate segment between the leading ../ parts and the filename
+  const parts = specifier.split('/');
+
+  // Find where the relative prefix ends (../ or ./)
+  let prefixEnd = 0;
+  while (prefixEnd < parts.length && (parts[prefixEnd] === '..' || parts[prefixEnd] === '.')) {
+    prefixEnd++;
+  }
+
+  const prefix = parts.slice(0, prefixEnd);
+  const rest = parts.slice(prefixEnd); // e.g. ["src", "index"]
+
+  // Try removing each segment from rest
+  for (let skip = 0; skip < rest.length - 1; skip++) {
+    const candidate = [...prefix, ...rest.slice(0, skip), ...rest.slice(skip + 1)].join('/');
+    const candidateResolved = path.resolve(dir, candidate);
+    for (const ext of extensions) {
+      if (fs.existsSync(candidateResolved + ext)) return candidate;
+    }
+  }
+
+  // Try reducing ../ depth (rootDir stripping removes a directory level,
+  // so ../../foo.json should become ../foo.json)
+  const dotdotCount = prefix.filter((p) => p === '..').length;
+  if (dotdotCount > 0) {
+    for (let reduce = 1; reduce <= dotdotCount; reduce++) {
+      const reducedPrefix = prefix.slice(reduce);
+      if (reducedPrefix.length === 0) reducedPrefix.push('.'); // all ../ removed → current dir
+      const candidate = [...reducedPrefix, ...rest].join('/');
+      const candidateResolved = path.resolve(dir, candidate);
+      for (const ext of extensions) {
+        if (fs.existsSync(candidateResolved + ext)) return candidate;
+      }
+    }
+  }
+
+  return null;
 }
 
 function collectFilesRecursive(dir: string, files: string[], extensions: string[]): void {
@@ -317,6 +432,35 @@ function collectFilesRecursive(dir: string, files: string[], extensions: string[
       files.push(fullPath);
     }
   }
+}
+
+/**
+ * Get the output-relative entry point for a package.
+ * tsc strips rootDir, so src/index.ts with rootDir=src becomes index.js.
+ */
+function getOutputEntryPoint(pkg: PackageInfo): string {
+  let rootDir = 'src';
+  try {
+    const configFile = ts.readConfigFile(pkg.tsconfig, ts.sys.readFile);
+    if (configFile.config?.compilerOptions?.rootDir) {
+      rootDir = configFile.config.compilerOptions.rootDir;
+    }
+  } catch {
+    // Fall back to default
+  }
+
+  // Normalize: strip leading ./ so "./src" matches "src/index.ts"
+  rootDir = rootDir.replace(/^\.\//, '');
+
+  let entry = pkg.entryPoint;
+  const rootDirPrefix = rootDir.replace(/\/$/, '') + '/';
+  if (entry.startsWith(rootDirPrefix)) {
+    entry = entry.slice(rootDirPrefix.length);
+  } else if (entry === rootDir) {
+    entry = '';
+  }
+
+  return entry.replace(/\.tsx?$/, '.js');
 }
 
 function getTransitiveDeps(

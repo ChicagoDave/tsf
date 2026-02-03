@@ -143,6 +143,29 @@ export function handlePublish(args: string[]): void {
     }
   }
 
+  // Validate staging manifests — catch workspace: protocol leaks before publishing
+  const invalid: string[] = [];
+  for (const pkg of ordered) {
+    const manifestPath = path.join(stagingDir, pkg.name.replace(/^@/, ''), 'package.json');
+    if (!fs.existsSync(manifestPath)) continue;
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+    for (const field of ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies']) {
+      const deps = manifest[field] as Record<string, string> | undefined;
+      if (!deps) continue;
+      for (const [name, version] of Object.entries(deps)) {
+        if (typeof version === 'string' && version.startsWith('workspace:')) {
+          invalid.push(`${pkg.name} → ${field}.${name}: ${version}`);
+        }
+      }
+    }
+  }
+  if (invalid.length > 0) {
+    logger.error('Staged manifests contain unresolved workspace: protocols:');
+    for (const msg of invalid) logger.error(`  ${msg}`);
+    logger.error('This is a bug in the build — workspace deps should be resolved to version ranges.');
+    process.exit(1);
+  }
+
   // Publish in dependency order
   const published: string[] = [];
   const dryRunFlag = options.dryRun ? '--dry-run' : '';
