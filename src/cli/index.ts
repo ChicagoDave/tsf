@@ -1,4 +1,35 @@
 #!/usr/bin/env node
+/**
+ * @fileoverview TSF Command Line Interface
+ * @module tsf/cli
+ *
+ * Main entry point for the `tsf` command. Provides these subcommands:
+ *
+ * **Build Commands:**
+ * - `tsf build` - Compile packages to configured targets
+ * - `tsf check` - Type-check without emitting
+ * - `tsf sync` - Update package.json entry points
+ * - `tsf validate` - Verify build outputs
+ *
+ * **Publish Commands:**
+ * - `tsf version` - Bump package versions
+ * - `tsf publish` - Publish packages to npm
+ * - `tsf changed` - Detect changed packages
+ *
+ * **Setup Commands:**
+ * - `tsf init` - Generate configuration
+ * - `tsf info` - Display build plan
+ * - `tsf list` - List packages
+ * - `tsf gh-action` - Generate GitHub Actions workflow
+ *
+ * @example
+ * ```bash
+ * tsf init                    # Generate config
+ * tsf build                   # Build for local dev
+ * tsf build --npm             # Build for npm publish
+ * tsf publish --dry-run       # Preview publish
+ * ```
+ */
 
 import type { BuildOptions } from '../types';
 import { build, buildWatch, check, info, loadBuildContextPublic, shouldSkipTarget } from '../orchestrator';
@@ -13,6 +44,7 @@ import { handlePublish } from './publish';
 import { handleList } from './list';
 import { handleChanged } from './changed';
 
+/** TSF version number */
 const VERSION = '0.1.0';
 
 function main(): void {
@@ -161,6 +193,10 @@ function parseBuildOptions(args: string[]): BuildOptions {
       case '--npm':
         options.npm = true;
         break;
+      case '--filter':
+        if (!options.filter) options.filter = [];
+        options.filter.push(args[++i]);
+        break;
       case '--local':
         // Explicit local mode (default behavior)
         break;
@@ -196,6 +232,7 @@ Options:
   --target <name>       Build specific target(s), comma-separated
   --condition <name>    Build targets matching condition
   --all                 Build all targets (default: unconditional only)
+  --filter <name>       Restrict to specific package(s), repeatable
   --check               Enable type checking before build
   --no-check            Skip type checking
   --clean               Remove output dirs before build
@@ -329,6 +366,8 @@ Usage:
   ts-forge info               Show resolved build plan
 
 Build Options:
+  --local               Build for local dev (default) — compiles to dist/
+  --npm                 Build for npm publish — compiles to ~/.tsf-publish/
   --target <name>       Build specific target(s), comma-separated
   --condition <name>    Build targets matching condition
   --all                 Build all targets

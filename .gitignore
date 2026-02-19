@@ -2,3 +2,4 @@ node_modules/
 dist/
 *.tsbuildinfo
 .tsf-cache/
+docs/ref/

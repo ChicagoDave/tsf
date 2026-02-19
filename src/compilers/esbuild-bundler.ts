@@ -1,26 +1,46 @@
+/**
+ * @fileoverview esbuild bundler adapter
+ * @module tsf/compilers/esbuild-bundler
+ *
+ * Bundles a package into a single file using esbuild.
+ * Unlike the transpilation adapter, this inlines all imports
+ * (including workspace dependencies) into one output file.
+ *
+ * Features:
+ * - Workspace package resolution via custom plugin
+ * - Deep import support (@scope/pkg/utils → source resolution)
+ * - External package marking (third-party deps)
+ * - Banner injection (for CLI shebangs)
+ * - ES target specification
+ *
+ * Use with `imports: "bundle"` and `bundler: "esbuild"` in config.
+ *
+ * @example
+ * ```typescript
+ * const result = await bundleWithEsbuild(pkg, target, rootDir, packages);
+ * // Single output file with all deps inlined
+ * ```
+ */
+
 import * as fs from 'fs';
 import * as path from 'path';
 import type { PackageInfo, ResolvedTarget, CompileResult } from '../types';
 import * as logger from '../utils/logger';
-
-let esbuild: typeof import('esbuild');
-
-function loadEsbuild(): typeof import('esbuild') {
-  if (esbuild) return esbuild;
-  try {
-    esbuild = require('esbuild');
-    return esbuild;
-  } catch {
-    throw new Error(
-      'esbuild is not installed. Install it with: pnpm add -D esbuild',
-    );
-  }
-}
+import { loadEsbuild } from '../utils/esbuild-loader';
 
 /**
- * Bundle a package using esbuild with bundle:true.
- * Workspace imports are resolved to source entry points and inlined.
- * Supports outFile (single output) and outDir (directory output).
+ * Bundles a package using esbuild with `bundle: true`.
+ *
+ * Workspace imports are resolved to source entry points and inlined
+ * into the output. Third-party dependencies are marked as external.
+ *
+ * Supports both `outFile` (single file) and `outDir` (directory) output modes.
+ *
+ * @param pkg - Package to bundle
+ * @param target - Build target configuration
+ * @param rootDir - Workspace root directory
+ * @param workspacePackages - Workspace packages to resolve and inline
+ * @returns Bundle result
  */
 export async function bundleWithEsbuild(
   pkg: PackageInfo,

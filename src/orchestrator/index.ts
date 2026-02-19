@@ -1,3 +1,41 @@
+/**
+ * @fileoverview Build orchestration and coordination
+ * @module tsf/orchestrator
+ *
+ * The orchestrator is the heart of TSF. It coordinates the entire build process:
+ *
+ * 1. **Context Loading**: Finds config, resolves packages, computes build order
+ * 2. **Target Selection**: Filters targets based on --npm, --target, --condition
+ * 3. **Dependency Ordering**: Builds packages level-by-level (parallel within levels)
+ * 4. **Caching**: Skips unchanged packages using content-hash cache
+ * 5. **Compilation**: Delegates to compiler adapters (tsc, esbuild, rollup)
+ * 6. **Transformation**: Rewrites imports and declarations post-compilation
+ * 7. **Staging**: For --npm builds, outputs to staging directory with clean manifests
+ *
+ * ## Build Modes
+ *
+ * **Local build** (`tsf build`):
+ * - Outputs to `dist/` within each package
+ * - Preserves workspace imports
+ * - For development and local testing
+ *
+ * **NPM build** (`tsf build --npm`):
+ * - Outputs to `~/.tsf-publish/<pkg>/`
+ * - Rewrites imports to relative paths
+ * - Generates clean package.json (no workspace:* deps)
+ * - For npm publish preparation
+ *
+ * @example
+ * ```typescript
+ * import { build } from 'tsf';
+ *
+ * await build({ target: ['local'] });           // Local dev build
+ * await build({ npm: true });                    // NPM publish build
+ * await build({ watch: true });                  // Watch mode
+ * await build({ check: true, noEmit: true });    // Type check only
+ * ```
+ */
+
 import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
@@ -17,6 +55,12 @@ import * as os from 'os';
 import * as logger from '../utils/logger';
 import { generatePublishManifest } from '../sync/package-json';
 
+/**
+ * Returns the staging directory for npm publish builds.
+ * Defaults to `~/.tsf-publish/`, configurable via `TSF_PUBLISH_DIR` env var.
+ *
+ * @returns Absolute path to staging directory
+ */
 export function getPublishStagingDir(): string {
   return process.env.TSF_PUBLISH_DIR || path.join(os.homedir(), '.tsf-publish');
 }
@@ -48,7 +92,15 @@ export async function build(options: BuildOptions): Promise<boolean> {
     }
   }
 
-  logger.info(`Building ${activeTargets.map((t) => t.name).join(', ')} across ${ctx.packages.size} package(s)`);
+  // Compute applicable packages (respects shouldSkipTarget and --filter)
+  const filterNames = options.filter && options.filter.length > 0 ? options.filter : null;
+  const applicablePackages = Array.from(ctx.packages.values()).filter(
+    (pkg) =>
+      (!filterNames || filterNames.includes(pkg.name)) &&
+      activeTargets.some((t) => !shouldSkipTarget(pkg, t)),
+  );
+  const applicableNames = new Set(applicablePackages.map((p) => p.name));
+  logger.info(`Building ${activeTargets.map((t) => t.name).join(', ')} across ${applicablePackages.length} package(s)`);
 
   // Type check if requested
   if (options.check) {
@@ -88,6 +140,7 @@ export async function build(options: BuildOptions): Promise<boolean> {
     const workItems: Array<{ pkg: PackageInfo; target: ResolvedTarget }> = [];
 
     for (const pkgName of level) {
+      if (!applicableNames.has(pkgName)) continue;
       const pkg = ctx.packages.get(pkgName)!;
       for (const target of activeTargets) {
         if (shouldSkipTarget(pkg, target)) {
@@ -107,10 +160,10 @@ export async function build(options: BuildOptions): Promise<boolean> {
 
         let finalConfig = { ...targetConfig, imports: targetConfig.imports ?? 'preserve' };
 
-        // In npm mode, redirect output to staging dir and force relative imports
+        // In npm mode, redirect output to staging dir and preserve package specifiers
         if (isNpmBuild && npmStagingDir) {
           const pkgStagingDir = path.join(npmStagingDir, pkg.name.replace(/^@/, ''));
-          finalConfig = { ...finalConfig, outDir: pkgStagingDir, imports: 'relative' };
+          finalConfig = { ...finalConfig, outDir: pkgStagingDir, imports: 'preserve' };
         }
 
         const resolvedTarget: ResolvedTarget = {
@@ -137,12 +190,12 @@ export async function build(options: BuildOptions): Promise<boolean> {
 
   // In npm mode, generate clean package.json + copy assets to staging
   if (isNpmBuild && npmStagingDir && !hasErrors) {
-    for (const pkg of ctx.packages.values()) {
+    for (const pkg of applicablePackages) {
       const pkgStagingDir = path.join(npmStagingDir, pkg.name.replace(/^@/, ''));
-      if (!fs.existsSync(pkgStagingDir)) continue; // wasn't built (skipped)
+      if (!fs.existsSync(pkgStagingDir)) continue; // wasn't built (cache hit or error)
 
-      // Generate clean package.json
-      const manifest = generatePublishManifest(pkg);
+      // Generate clean package.json (with workspace deps resolved to real versions)
+      const manifest = generatePublishManifest(pkg, ctx.packages);
       fs.writeFileSync(
         path.join(pkgStagingDir, 'package.json'),
         JSON.stringify(manifest, null, 2) + '\n',

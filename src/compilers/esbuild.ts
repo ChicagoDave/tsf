@@ -1,27 +1,44 @@
+/**
+ * @fileoverview esbuild transpilation adapter
+ * @module tsf/compilers/esbuild
+ *
+ * Fast TypeScript transpilation using esbuild.
+ * Significantly faster than tsc (10-100x) but with trade-offs:
+ * - No type checking (use separate `tsc --noEmit` or `typeCheck: true`)
+ * - No declaration file emission (handled by separate tsc pass)
+ * - Simpler output (no project references, no incremental)
+ *
+ * Best for:
+ * - Development builds where speed matters
+ * - Packages with existing type coverage
+ * - CI pipelines with separate type-check step
+ *
+ * @example
+ * ```typescript
+ * const result = compileWithEsbuild(pkg, target, rootDir);
+ * // result.outputFiles contains .js and .js.map files
+ * ```
+ */
+
 import * as fs from 'fs';
 import * as path from 'path';
 import * as ts from 'typescript';
 import type { PackageInfo, ResolvedTarget, CompileResult } from '../types';
 import * as logger from '../utils/logger';
-
-let esbuild: typeof import('esbuild');
-
-function loadEsbuild(): typeof import('esbuild') {
-  if (esbuild) return esbuild;
-  try {
-    esbuild = require('esbuild');
-    return esbuild;
-  } catch {
-    throw new Error(
-      'esbuild is not installed. Install it with: pnpm add -D esbuild',
-    );
-  }
-}
+import { loadEsbuild } from '../utils/esbuild-loader';
 
 /**
- * Compile a package using esbuild for fast transpilation.
+ * Compiles a package using esbuild for fast transpilation.
+ *
  * esbuild strips types but does not emit .d.ts files.
- * If declarations are requested, a separate tsc --emitDeclarationOnly pass runs.
+ * If `declarations: true` is set, a separate tsc `--emitDeclarationOnly`
+ * pass runs after esbuild to generate declaration files.
+ *
+ * @param pkg - Package to compile
+ * @param target - Build target configuration
+ * @param rootDir - Workspace root directory
+ * @param workspacePackages - Workspace packages (marked as external)
+ * @returns Compilation result
  */
 export function compileWithEsbuild(
   pkg: PackageInfo,

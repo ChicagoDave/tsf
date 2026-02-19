@@ -1,8 +1,28 @@
+/**
+ * @fileoverview GitHub Actions workflow generator
+ * @module tsf/cli/gh-action
+ *
+ * Generates `.github/workflows/tsf.yml` with:
+ * - Auto-detected package manager (pnpm, npm, yarn)
+ * - Node.js version matrix
+ * - Build and test steps
+ * - Proper caching configuration
+ *
+ * @example
+ * ```bash
+ * tsf gh-action    # Generate workflow file
+ * ```
+ */
+
 import * as fs from 'fs';
 import * as path from 'path';
 import { detectWorkspace } from '../resolver/workspace';
 import * as logger from '../utils/logger';
 
+/**
+ * Generates a GitHub Actions workflow file for TSF builds.
+ * Detects package manager and creates appropriate install/build commands.
+ */
 export function generateGitHubAction(rootDir?: string): void {
   const dir = rootDir || process.cwd();
   const outDir = path.join(dir, '.github', 'workflows');

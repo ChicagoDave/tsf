@@ -1,9 +1,44 @@
+/**
+ * @fileoverview TypeScript compiler (tsc) adapter
+ * @module tsf/compilers/tsc
+ *
+ * Full TypeScript compilation using the official tsc compiler.
+ * This is the default transpiler for TSF, providing:
+ * - Complete type checking
+ * - Declaration file (.d.ts) generation
+ * - Source map generation
+ * - Cross-package path resolution
+ *
+ * Handles complex monorepo scenarios:
+ * - Automatic workspace package path injection
+ * - rootDir widening for cross-package imports
+ * - Output flattening when rootDir is widened
+ * - Module resolution compatibility fixes
+ *
+ * @example
+ * ```typescript
+ * const result = compile(pkg, target, rootDir, packages);
+ * if (!result.success) {
+ *   result.diagnostics.forEach(d => console.error(d));
+ * }
+ * ```
+ */
+
 import * as ts from 'typescript';
 import * as fs from 'fs';
 import * as path from 'path';
 import type { PackageInfo, ResolvedTarget, CompileResult } from '../types';
 import * as logger from '../utils/logger';
 
+/**
+ * Compiles a package using the TypeScript compiler.
+ *
+ * @param pkg - Package to compile
+ * @param target - Build target configuration
+ * @param rootDir - Workspace root directory
+ * @param workspacePackages - All workspace packages (for path injection)
+ * @returns Compilation result with success status, diagnostics, and output files
+ */
 export function compile(
   pkg: PackageInfo,
   target: ResolvedTarget,
@@ -65,8 +100,10 @@ export function compile(
   // import transformer can then rewrite. Path injection causes tsc to emit broken
   // relative paths into the staging directory.
   const isRelativeBuild = target.config.imports === 'relative';
+  const currentPaths: ts.MapLike<string[]> = { ...(parsedConfig.options.paths || {}) };
+
+  // Inject workspace package paths for local builds only
   if (workspacePackages && !isRelativeBuild) {
-    const currentPaths: ts.MapLike<string[]> = { ...(parsedConfig.options.paths || {}) };
     let needsBaseUrl = false;
 
     // Include transitive deps: tsc follows source paths and needs to resolve
@@ -93,9 +130,12 @@ export function compile(
     if (needsBaseUrl && !parsedConfig.options.baseUrl) {
       overrides.baseUrl = pkg.path;
     }
+  }
 
-    // Widen rootDir if any path entry resolves outside the package's rootDir.
-    // This handles both user-provided paths (in tsconfig) and ts-forge-injected ones.
+  // Widen rootDir if any path entry resolves outside the package's rootDir.
+  // This handles user-provided paths in tsconfig (for both local and npm builds).
+  // Even for npm builds, if tsconfig has paths that resolve outside rootDir, tsc fails.
+  if (Object.keys(currentPaths).length > 0) {
     const effectiveRootDir = parsedConfig.options.rootDir
       ? path.resolve(path.dirname(pkg.tsconfig), parsedConfig.options.rootDir)
       : path.dirname(pkg.tsconfig);

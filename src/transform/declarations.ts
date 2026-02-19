@@ -1,3 +1,26 @@
+/**
+ * @fileoverview Declaration file (.d.ts) import rewriting
+ * @module tsf/transform/declarations
+ *
+ * Rewrites workspace package imports in TypeScript declaration files.
+ * This complements `transform/imports.ts` — both JS and .d.ts files must
+ * have matching import paths for consumers to get proper type resolution.
+ *
+ * Handles declaration-specific patterns:
+ * - `import type { Foo } from "@scope/pkg"`
+ * - `export { Bar } from "@scope/pkg"`
+ * - `/// <reference types="@scope/pkg" />`
+ * - `declare module "@scope/pkg" { ... }`
+ *
+ * Also handles:
+ * - Extension mapping (.d.ts → .d.mts for ESM)
+ * - Source map fixup for declaration maps
+ *
+ * @example
+ * Before: `import type { Config } from "@scope/core";`
+ * After:  `import type { Config } from "../core/dist/index";`
+ */
+
 import * as fs from 'fs';
 import * as path from 'path';
 import * as ts from 'typescript';
@@ -5,12 +28,40 @@ import { globSync } from 'glob';
 import type { PackageInfo, ResolvedTarget } from '../types';
 import * as logger from '../utils/logger';
 
-// Same patterns as imports.ts but for .d.ts content
+// ============================================================================
+// Declaration Import Pattern Regular Expressions
+// ============================================================================
+
+/** Matches import/export ... from "specifier" */
 const IMPORT_EXPORT_RE = /((?:import|export)\s+.*?\s+from\s+)["']([^"']+)["']/g;
+
+/** Matches import type ... from "specifier" */
 const IMPORT_TYPE_RE = /(import\s+type\s+.*?\s+from\s+)["']([^"']+)["']/g;
+
+/** Matches /// <reference types="specifier" /> */
 const REFERENCE_RE = /(\/\/\/\s*<reference\s+types=")([^"]+)("\s*\/>)/g;
+
+/** Matches declare module "specifier" { ... } */
 const DECLARE_MODULE_RE = /(declare\s+module\s+")([^"]+)(")/g;
 
+// ============================================================================
+// Public API
+// ============================================================================
+
+/**
+ * Rewrites workspace imports in all declaration files.
+ * Only processes targets with `imports: "relative"` and `declarations: true`.
+ *
+ * @param pkg - Package being transformed
+ * @param target - Build target configuration
+ * @param packages - All workspace packages (for resolving imports)
+ *
+ * @example
+ * ```typescript
+ * transformDeclarations(corePackage, npmTarget, allPackages);
+ * // All @scope/* imports in core's .d.ts files are now relative paths
+ * ```
+ */
 export function transformDeclarations(
   pkg: PackageInfo,
   target: ResolvedTarget,
@@ -88,6 +139,22 @@ export function transformDeclarations(
   }
 }
 
+// ============================================================================
+// Internal Helpers
+// ============================================================================
+
+/**
+ * Rewrites a single import specifier to a relative path.
+ * Similar to imports.ts but outputs paths without extension
+ * (TypeScript resolves .d.ts automatically).
+ *
+ * @param specifier - Original import specifier
+ * @param fromFile - Absolute path to the .d.ts file containing this import
+ * @param currentPkg - Package being transformed
+ * @param target - Build target configuration
+ * @param packages - All workspace packages
+ * @returns Rewritten specifier or original if not a workspace import
+ */
 function rewriteSpecifier(
   specifier: string,
   fromFile: string,
@@ -111,6 +178,13 @@ function rewriteSpecifier(
   return relativePath.replace(/\\/g, '/');
 }
 
+/**
+ * Computes the output declaration file path for a package's entry point.
+ * Mirrors getOutputEntryPoint in imports.ts but returns .d.ts extension.
+ *
+ * @param pkg - Package to compute entry point for
+ * @returns Output .d.ts path relative to outDir
+ */
 function getOutputEntryPoint(pkg: PackageInfo): string {
   let rootDir = 'src';
   try {
@@ -133,6 +207,10 @@ function getOutputEntryPoint(pkg: PackageInfo): string {
   return entry.replace(/\.tsx?$/, '.d.ts');
 }
 
+/**
+ * Finds the workspace package matching an import specifier.
+ * @see imports.ts findMatchingPackage for details
+ */
 function findMatchingPackage(specifier: string, packages: Map<string, PackageInfo>): PackageInfo | undefined {
   if (packages.has(specifier)) return packages.get(specifier);
   for (const [name, pkg] of packages) {
@@ -141,6 +219,19 @@ function findMatchingPackage(specifier: string, packages: Map<string, PackageInf
   return undefined;
 }
 
+/**
+ * Applies extension mapping to rename declaration files.
+ * Used for ESM targets that require .d.mts extensions.
+ *
+ * @param file - Absolute path to declaration file
+ * @param extensionMap - Mapping of old → new extensions
+ * @param outDir - Output directory (for logging)
+ * @param context - Logging context
+ *
+ * @example
+ * With extensionMap: { ".d.ts": ".d.mts" }
+ * `foo.d.ts` → `foo.d.mts`
+ */
 function applyExtensionMap(
   file: string,
   extensionMap: Record<string, string>,
@@ -157,6 +248,17 @@ function applyExtensionMap(
   }
 }
 
+/**
+ * Fixes source paths in declaration map files (.d.ts.map).
+ * After import rewriting, source map paths may need adjustment.
+ * Also updates the `file` field if extension mapping was applied.
+ *
+ * @param mapFile - Path to .d.ts.map file
+ * @param pkg - Package being processed
+ * @param target - Build target configuration
+ * @param outDir - Output directory (for logging)
+ * @param context - Logging context
+ */
 function fixupDeclarationMap(
   mapFile: string,
   pkg: PackageInfo,
@@ -168,11 +270,10 @@ function fixupDeclarationMap(
     const raw = fs.readFileSync(mapFile, 'utf-8');
     const map = JSON.parse(raw);
 
-    // Adjust sources to point to original source relative to this output location
+    // Normalize source paths relative to map location
     if (Array.isArray(map.sources)) {
       const mapDir = path.dirname(mapFile);
       map.sources = map.sources.map((source: string) => {
-        // Recompute relative path from map location to source
         const absSource = path.resolve(mapDir, source);
         return path.relative(mapDir, absSource).replace(/\\/g, '/');
       });

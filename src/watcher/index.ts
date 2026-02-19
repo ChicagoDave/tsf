@@ -1,18 +1,56 @@
+/**
+ * @fileoverview File system watcher for incremental rebuild
+ * @module tsf/watcher
+ *
+ * Monitors source files in workspace packages and triggers rebuilds
+ * when changes are detected. Intelligently propagates changes through
+ * the dependency graph — if package A depends on B and B changes,
+ * both B and A are rebuilt.
+ *
+ * Features:
+ * - Recursive directory watching
+ * - Change debouncing (batches rapid saves)
+ * - Dependency-aware rebuild propagation
+ * - TypeScript file filtering (.ts, .tsx only)
+ *
+ * @example
+ * ```typescript
+ * const watcher = createWatcher(packages, buildOrder);
+ * watcher.on('rebuild', async (affected) => {
+ *   for (const pkg of affected) await build(pkg);
+ * });
+ * watcher.start();
+ * ```
+ */
+
 import * as fs from 'fs';
 import * as path from 'path';
 import { EventEmitter } from 'events';
 import type { PackageInfo } from '../types';
 import * as logger from '../utils/logger';
 
+/**
+ * File watcher interface.
+ */
 export interface Watcher {
+  /** Subscribe to rebuild events */
   on(event: 'rebuild', listener: (affectedPackages: string[]) => void): void;
+  /** Start watching source directories */
   start(): void;
+  /** Stop watching and clean up resources */
   stop(): void;
 }
 
 /**
- * Create a file watcher that monitors workspace packages and emits
- * rebuild events with the list of affected packages (including dependents).
+ * Creates a file watcher for workspace packages.
+ *
+ * When a source file changes, computes all affected packages
+ * (the changed package plus all packages that depend on it,
+ * transitively) and emits a 'rebuild' event.
+ *
+ * @param packages - Map of package name → PackageInfo
+ * @param buildOrder - Topologically sorted build levels (used for ordering rebuilds)
+ * @returns Watcher instance
  */
 export function createWatcher(
   packages: Map<string, PackageInfo>,

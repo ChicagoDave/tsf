@@ -1,3 +1,24 @@
+/**
+ * @fileoverview Import specifier rewriting for JavaScript output
+ * @module tsf/transform/imports
+ *
+ * Rewrites workspace package imports (`@scope/pkg`) to relative paths in
+ * compiled JavaScript files. This is the key transformation that enables
+ * npm publishing — published packages must use relative imports since
+ * workspace symlinks don't exist in consumer environments.
+ *
+ * Handles all JavaScript import patterns:
+ * - CommonJS: `require("@scope/pkg")`
+ * - ESM: `import foo from "@scope/pkg"`
+ * - Re-exports: `export { bar } from "@scope/pkg"`
+ * - Side effects: `import "@scope/pkg"`
+ * - Deep imports: `@scope/pkg/utils` → `../pkg/dist/utils.js`
+ *
+ * @example
+ * Before: `import { utils } from "@scope/core";`
+ * After:  `import { utils } from "../core/dist/index.js";`
+ */
+
 import * as fs from 'fs';
 import * as path from 'path';
 import * as ts from 'typescript';
@@ -5,15 +26,46 @@ import { globSync } from 'glob';
 import type { PackageInfo, ResolvedTarget } from '../types';
 import * as logger from '../utils/logger';
 
-// Matches: require("specifier"), require('specifier')
+// ============================================================================
+// Import Pattern Regular Expressions
+// ============================================================================
+
+/**
+ * Matches CommonJS require calls.
+ * Captures: require("specifier") or require('specifier')
+ */
 const REQUIRE_RE = /require\(["']([^"']+)["']\)/g;
 
-// Matches: import ... from "specifier", export ... from "specifier"
+/**
+ * Matches ESM import/export with `from` clause.
+ * Captures: import/export ... from "specifier"
+ */
 const ESM_FROM_RE = /((?:import|export)\s+.*?\s+from\s+)["']([^"']+)["']/g;
 
-// Matches: import "specifier" (side-effect imports)
+/**
+ * Matches side-effect imports (no bindings).
+ * Captures: import "specifier"
+ */
 const ESM_SIDE_EFFECT_RE = /(import\s+)["']([^"']+)["']/g;
 
+// ============================================================================
+// Public API
+// ============================================================================
+
+/**
+ * Rewrites workspace imports to relative paths in all JavaScript files.
+ * Only processes targets with `imports: "relative"`.
+ *
+ * @param pkg - Package being transformed
+ * @param target - Build target configuration
+ * @param packages - All workspace packages (for resolving imports)
+ *
+ * @example
+ * ```typescript
+ * transformImports(corePackage, npmTarget, allPackages);
+ * // All @scope/* imports in core's dist/ are now relative paths
+ * ```
+ */
 export function transformImports(
   pkg: PackageInfo,
   target: ResolvedTarget,
@@ -66,6 +118,20 @@ export function transformImports(
   }
 }
 
+// ============================================================================
+// Internal Helpers
+// ============================================================================
+
+/**
+ * Rewrites a single import specifier to a relative path.
+ *
+ * @param specifier - Original import specifier (e.g., "@scope/pkg")
+ * @param fromFile - Absolute path to the file containing this import
+ * @param currentPkg - Package being transformed
+ * @param target - Build target configuration
+ * @param packages - All workspace packages
+ * @returns Rewritten specifier (relative path) or original if not a workspace import
+ */
 function rewriteSpecifier(
   specifier: string,
   fromFile: string,
@@ -83,8 +149,8 @@ function rewriteSpecifier(
     return specifier;
   }
 
-  // Compute relative path from this output file to the dependency's output entry point.
-  // The output path = entryPoint relative to the dep's rootDir (tsc strips rootDir prefix).
+  // Compute relative path from this output file to the dependency's output entry point
+  // The output path = entryPoint relative to the dep's rootDir (tsc strips rootDir prefix)
   const depOutDir = path.resolve(depPkg.path, target.config.outDir!);
   const depOutputEntry = getOutputEntryPoint(depPkg);
   const depOutputFile = path.join(depOutDir, depOutputEntry);
@@ -94,7 +160,7 @@ function rewriteSpecifier(
     relativePath = './' + relativePath;
   }
 
-  // Normalize to forward slashes
+  // Normalize to forward slashes (cross-platform)
   relativePath = relativePath.replace(/\\/g, '/');
 
   // Handle deep imports: @scope/pkg/sub → relative to dep outDir + sub
@@ -109,6 +175,19 @@ function rewriteSpecifier(
   return relativePath;
 }
 
+/**
+ * Finds the workspace package matching an import specifier.
+ * Handles both exact matches and deep imports.
+ *
+ * @param specifier - Import specifier to match
+ * @param packages - All workspace packages
+ * @returns Matching package, or undefined if not a workspace import
+ *
+ * @example
+ * findMatchingPackage("@scope/core", packages) → PackageInfo for @scope/core
+ * findMatchingPackage("@scope/core/utils", packages) → PackageInfo for @scope/core
+ * findMatchingPackage("lodash", packages) → undefined (external)
+ */
 function findMatchingPackage(specifier: string, packages: Map<string, PackageInfo>): PackageInfo | undefined {
   // Exact match
   if (packages.has(specifier)) return packages.get(specifier);
@@ -122,9 +201,18 @@ function findMatchingPackage(specifier: string, packages: Map<string, PackageInf
 }
 
 /**
- * Get the output-relative path for a package's entry point.
- * tsc strips the rootDir prefix when outputting, so src/index.ts with rootDir=src
- * becomes index.js in outDir.
+ * Computes the output-relative path for a package's entry point.
+ *
+ * TypeScript's tsc strips the `rootDir` prefix when outputting files.
+ * For example, with `rootDir: "src"`:
+ * - Source: `src/index.ts`
+ * - Output: `dist/index.js` (not `dist/src/index.js`)
+ *
+ * This function replicates that logic to compute where the entry point
+ * will be in the output directory.
+ *
+ * @param pkg - Package to compute entry point for
+ * @returns Output entry point path relative to outDir
  */
 function getOutputEntryPoint(pkg: PackageInfo): string {
   let rootDir = 'src'; // default assumption
@@ -149,6 +237,17 @@ function getOutputEntryPoint(pkg: PackageInfo): string {
   return entry.replace(/\.tsx?$/, '.js');
 }
 
+/**
+ * Extracts the subpath from a deep import.
+ *
+ * @param specifier - Full import specifier
+ * @param packageName - Package name to strip
+ * @returns Subpath after package name, or null if exact match
+ *
+ * @example
+ * getSubpath("@scope/pkg/utils", "@scope/pkg") → "utils"
+ * getSubpath("@scope/pkg", "@scope/pkg") → null
+ */
 function getSubpath(specifier: string, packageName: string): string | null {
   if (specifier === packageName) return null;
   if (specifier.startsWith(packageName + '/')) {

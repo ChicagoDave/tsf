@@ -1,10 +1,37 @@
+/**
+ * @fileoverview Rollup bundler adapter
+ * @module tsf/compilers/rollup-bundler
+ *
+ * Bundles a package using Rollup with advanced tree-shaking.
+ * Rollup excels at producing optimized ESM bundles with minimal dead code.
+ *
+ * Features:
+ * - Workspace package resolution via custom plugin
+ * - TypeScript transpilation (via esbuild or tsc API)
+ * - Node.js builtin externalization
+ * - Deep import support
+ * - Banner injection
+ *
+ * Use with `imports: "bundle"` and `bundler: "rollup"` in config.
+ *
+ * @example
+ * ```typescript
+ * const result = await bundleWithRollup(pkg, target, rootDir, packages);
+ * // Optimized bundle with tree-shaking
+ * ```
+ */
+
 import * as fs from 'fs';
 import * as path from 'path';
 import type { PackageInfo, ResolvedTarget, CompileResult } from '../types';
 import * as logger from '../utils/logger';
 
+/** Lazily-loaded rollup module */
 let rollup: typeof import('rollup');
 
+/**
+ * Loads rollup on demand.
+ */
 function loadRollup(): typeof import('rollup') {
   if (rollup) return rollup;
   try {
@@ -18,8 +45,17 @@ function loadRollup(): typeof import('rollup') {
 }
 
 /**
- * Bundle a package using Rollup for tree-shaking.
- * Workspace imports are resolved to source entry points and inlined.
+ * Bundles a package using Rollup for optimized output with tree-shaking.
+ *
+ * Includes two custom plugins:
+ * - Workspace resolution: resolves @scope/pkg to source entry points
+ * - TypeScript transform: strips types using esbuild (fast) or tsc (fallback)
+ *
+ * @param pkg - Package to bundle
+ * @param target - Build target configuration
+ * @param rootDir - Workspace root directory
+ * @param workspacePackages - Workspace packages to resolve and inline
+ * @returns Bundle result
  */
 export async function bundleWithRollup(
   pkg: PackageInfo,

@@ -1,14 +1,41 @@
+/**
+ * @fileoverview Project structure detection for configuration generation
+ * @module tsf/cli/detect
+ *
+ * Analyzes existing project files to auto-detect build configuration.
+ * Used by `tsf init` to generate sensible defaults.
+ *
+ * Detection sources:
+ * - `package.json`: main, module, types, bin, type, exports
+ * - `tsconfig.json`: module, target, declaration, outDir
+ *
+ * Templates:
+ * - `library`: ESM + CJS dual output with declarations
+ * - `cli`: Single executable with shebang
+ * - `monorepo`: Multiple packages with workspace resolution
+ */
+
 import * as fs from 'fs';
 import * as path from 'path';
 import type { TargetConfig, DefaultConfig } from '../types';
 
+/**
+ * Auto-detected configuration from project analysis.
+ */
 export interface DetectedConfig {
+  /** Detected build targets */
   targets: Record<string, TargetConfig>;
+  /** Detected default settings */
   defaults: DefaultConfig;
+  /** Detected tsconfig.json glob patterns */
   projects: string[];
+  /** Detected project template */
   template?: 'library' | 'cli' | 'monorepo';
 }
 
+/**
+ * Hints extracted from package.json.
+ */
 export interface PackageJsonHints {
   main?: string;
   module?: string;
@@ -18,6 +45,9 @@ export interface PackageJsonHints {
   exports?: Record<string, unknown>;
 }
 
+/**
+ * Hints extracted from tsconfig.json.
+ */
 export interface TsconfigHints {
   module?: string;
   target?: string;

@@ -1,3 +1,24 @@
+/**
+ * @fileoverview Change detection for selective publishing
+ * @module tsf/cli/changed
+ *
+ * Detects which packages have changed since their last npm publish.
+ * Used by `tsf publish --changed` and `tsf version --changed` to
+ * only affect packages that need updates.
+ *
+ * Detection methods:
+ * 1. Not published: Package doesn't exist on npm
+ * 2. Version differs: Local version differs from npm version
+ * 3. Git changes: Files changed since version tag (v{name}@{version})
+ *
+ * @example
+ * ```bash
+ * tsf changed                    # List changed packages
+ * tsf publish --changed          # Publish only changed packages
+ * tsf version --changed --bump patch  # Bump only changed packages
+ * ```
+ */
+
 import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -5,21 +26,41 @@ import { loadBuildContextPublic, shouldSkipTarget } from '../orchestrator';
 import type { PackageInfo } from '../types';
 import * as logger from '../utils/logger';
 
+/**
+ * Options for change detection.
+ */
 interface ChangedOptions {
+  /** Only check packages with this target condition */
   condition?: string;
+  /** Package names to check (empty = all) */
   filter: string[];
 }
 
+/**
+ * Information about a changed package.
+ */
 export interface ChangedPackage {
+  /** Package metadata */
   pkg: PackageInfo;
+  /** Version in local package.json */
   localVersion: string;
+  /** Version on npm registry (null if not published) */
   publishedVersion: string | null;
+  /** Why the package is considered changed */
   reason: string;
 }
 
 /**
- * Detect which publishable packages have changed since their last npm publish.
- * Compares local git changes against the version currently on the npm registry.
+ * Detects which publishable packages have changed since their last npm publish.
+ *
+ * Comparison logic:
+ * 1. Query npm registry for published version
+ * 2. If not published → changed (reason: "not published")
+ * 3. If versions differ → changed (reason: "version differs")
+ * 4. If git has changes since tag → changed (reason: "git changes")
+ *
+ * @param options - Filter options
+ * @returns Array of changed packages with reasons
  */
 export function detectChanged(options: { condition?: string; filter: string[] }): ChangedPackage[] {
   const ctx = loadBuildContextPublic();

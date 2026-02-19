@@ -1,19 +1,57 @@
+/**
+ * @fileoverview Package version management
+ * @module tsf/cli/version
+ *
+ * Updates version numbers in package.json files across the workspace.
+ * Supports both explicit versions and semantic version bumping.
+ *
+ * Features:
+ * - Explicit version: `tsf version 1.2.3`
+ * - Bump: `tsf version --bump patch`
+ * - Prerelease: `tsf version --bump prerelease --preid beta`
+ * - Filter to specific packages
+ * - Changed detection integration
+ * - Dry-run mode for preview
+ *
+ * @example
+ * ```bash
+ * tsf version 1.0.0              # Set all packages to 1.0.0
+ * tsf version --bump minor       # Bump minor version
+ * tsf version --bump prerelease --preid alpha  # 1.0.0 → 1.0.1-alpha.0
+ * tsf version --changed --bump patch  # Only bump changed packages
+ * ```
+ */
+
 import { loadBuildContextPublic, shouldSkipTarget } from '../orchestrator';
 import { detectChanged } from './changed';
 import * as logger from '../utils/logger';
 import * as fs from 'fs';
 import * as path from 'path';
 
+/**
+ * Options for the version command.
+ */
 interface VersionOptions {
+  /** Explicit version to set */
   version?: string;
+  /** Semantic version bump type */
   bump?: 'major' | 'minor' | 'patch' | 'prerelease';
+  /** Prerelease identifier (e.g., "alpha", "beta") */
   preid: string;
+  /** Package names to version (empty = all) */
   filter: string[];
+  /** Only version packages with this target condition */
   condition?: string;
+  /** Only version packages that have changed */
   changed: boolean;
+  /** Preview without modifying files */
   dryRun: boolean;
 }
 
+/**
+ * Handles the `tsf version` command.
+ * Updates version numbers in package.json files.
+ */
 export function handleVersion(args: string[]): void {
   const options = parseVersionOptions(args);
 

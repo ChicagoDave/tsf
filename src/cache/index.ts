@@ -1,18 +1,56 @@
+/**
+ * @fileoverview Incremental build cache with content-hash invalidation
+ * @module tsf/cache
+ *
+ * Implements a content-addressed cache to skip redundant builds.
+ * Cache keys are SHA-256 hashes computed from:
+ * - Source file contents
+ * - Package version
+ * - tsconfig.json
+ * - Target configuration
+ * - Dependency cache keys (transitive invalidation)
+ *
+ * This ensures builds are skipped only when truly unchanged, and any
+ * modification to dependencies triggers downstream rebuilds.
+ *
+ * Cache entries are stored in `.tsf-cache/<target>/<package>/cache.json`.
+ */
+
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import { globSync } from 'glob';
 import type { PackageInfo, ResolvedTarget } from '../types';
 
+/**
+ * Cache entry stored on disk.
+ */
 export interface CacheEntry {
+  /** SHA-256 hash of all inputs */
   key: string;
+  /** Paths to generated output files */
   outputFiles: string[];
+  /** Unix timestamp of build completion */
   timestamp: number;
 }
 
 /**
- * Compute a cache key for a package+target build.
- * Hashes: source files, tsconfig, resolved target config, and dependency cache keys.
+ * Computes a cache key for a package+target build.
+ *
+ * The key is a SHA-256 hash of:
+ * - All source .ts/.tsx files (contents, not just paths)
+ * - Package version from package.json
+ * - tsconfig.json contents
+ * - Serialized target configuration
+ * - Cache keys of all workspace dependencies
+ *
+ * If any input changes, the hash changes, triggering a rebuild.
+ *
+ * @param pkg - Package to compute key for
+ * @param target - Build target
+ * @param rootDir - Workspace root
+ * @param depCacheKeys - Map of dependency name → cache key
+ * @returns Hex-encoded SHA-256 hash
  */
 export function computeCacheKey(
   pkg: PackageInfo,
@@ -67,12 +105,29 @@ export function computeCacheKey(
   return hash.digest('hex');
 }
 
+/**
+ * Computes the cache file path for a package+target combination.
+ * Uses a safe filename derived from the package name.
+ *
+ * @param cacheDir - Root cache directory
+ * @param pkg - Package
+ * @param target - Build target
+ * @returns Path to cache.json file
+ */
 function getCacheFilePath(cacheDir: string, pkg: PackageInfo, target: ResolvedTarget): string {
-  // Use package name without scope for directory
+  // Sanitize package name for filesystem: @scope/pkg → scope__pkg
   const safeName = pkg.name.replace(/^@/, '').replace(/\//g, '__');
   return path.join(cacheDir, target.name, safeName, 'cache.json');
 }
 
+/**
+ * Loads a cache entry from disk.
+ *
+ * @param cacheDir - Root cache directory
+ * @param pkg - Package to look up
+ * @param target - Build target
+ * @returns Cache entry if exists and valid JSON, null otherwise
+ */
 export function loadCacheEntry(
   cacheDir: string,
   pkg: PackageInfo,
@@ -88,8 +143,19 @@ export function loadCacheEntry(
 }
 
 /**
- * Check if a package+target build is cached and still valid.
- * Returns the cache key if valid, null if rebuild needed.
+ * Checks if a package+target build is cached and still valid.
+ *
+ * Validation checks:
+ * 1. Cache entry exists on disk
+ * 2. Stored key matches computed key (no input changes)
+ * 3. All output files still exist (handles manual deletion)
+ *
+ * @param cacheDir - Root cache directory
+ * @param pkg - Package to check
+ * @param target - Build target
+ * @param rootDir - Workspace root
+ * @param depCacheKeys - Dependency cache keys for hash computation
+ * @returns Cache key if valid (can skip build), null if rebuild needed
  */
 export function isCached(
   cacheDir: string,
@@ -104,7 +170,7 @@ export function isCached(
   const currentKey = computeCacheKey(pkg, target, rootDir, depCacheKeys);
   if (entry.key !== currentKey) return null;
 
-  // Verify output files still exist
+  // Verify output files still exist (handles manual deletion)
   for (const file of entry.outputFiles) {
     if (!fs.existsSync(file)) return null;
   }
@@ -113,7 +179,14 @@ export function isCached(
 }
 
 /**
- * Record a successful build in the cache.
+ * Records a successful build in the cache.
+ * Creates parent directories if needed.
+ *
+ * @param cacheDir - Root cache directory
+ * @param pkg - Package that was built
+ * @param target - Build target
+ * @param key - Computed cache key
+ * @param outputFiles - Paths to all generated files
  */
 export function recordBuild(
   cacheDir: string,
@@ -135,7 +208,10 @@ export function recordBuild(
 }
 
 /**
- * Remove the entire cache directory.
+ * Removes the entire cache directory.
+ * Use with `--clean` flag to force full rebuild.
+ *
+ * @param cacheDir - Cache directory to remove
  */
 export function cleanCache(cacheDir: string): void {
   if (fs.existsSync(cacheDir)) {

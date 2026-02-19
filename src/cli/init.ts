@@ -1,3 +1,25 @@
+/**
+ * @fileoverview Configuration initialization wizard
+ * @module tsf/cli/init
+ *
+ * Generates `ts-forge.config.json` by analyzing the existing project structure.
+ * Detects workspace type, tsconfig settings, and package.json hints to
+ * create appropriate build targets.
+ *
+ * Safe to re-run: merges new targets without overwriting existing config.
+ *
+ * Detection logic:
+ * - Workspace type (pnpm, npm, yarn)
+ * - Project template (library, cli, monorepo)
+ * - Module format from tsconfig.json
+ * - Entry points from package.json
+ *
+ * @example
+ * ```bash
+ * tsf init    # Generate config in current directory
+ * ```
+ */
+
 import * as fs from 'fs';
 import * as path from 'path';
 import type { TsForgeConfig, TargetConfig } from '../types';
@@ -12,6 +34,10 @@ import {
 } from './detect';
 import * as logger from '../utils/logger';
 
+/**
+ * Handles the `tsf init` command.
+ * Generates configuration by analyzing the project structure.
+ */
 export function init(rootDir?: string): void {
   const dir = rootDir || process.cwd();
   const configPath = path.join(dir, 'ts-forge.config.json');

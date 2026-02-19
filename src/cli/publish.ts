@@ -1,17 +1,56 @@
+/**
+ * @fileoverview Package publishing to npm
+ * @module tsf/cli/publish
+ *
+ * Publishes packages from the staging directory to npm.
+ * The staging directory (~/.tsf-publish/) contains build outputs
+ * with clean package.json files (no workspace:* dependencies).
+ *
+ * Workflow:
+ * 1. Build packages with `tsf build --npm`
+ * 2. Run `tsf publish` to pack and publish
+ *
+ * Features:
+ * - Tarball packing via `npm pack`
+ * - Tag support (latest, beta, etc.)
+ * - Filter to specific packages
+ * - Dry-run mode for preview
+ * - Changed detection integration
+ *
+ * @example
+ * ```bash
+ * tsf build --npm              # Build to staging
+ * tsf publish --dry-run        # Preview what would publish
+ * tsf publish --tag beta       # Publish with beta tag
+ * ```
+ */
+
 import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import { loadBuildContextPublic, shouldSkipTarget, getPublishStagingDir } from '../orchestrator';
 import * as logger from '../utils/logger';
 
+/**
+ * Options for the publish command.
+ */
 interface PublishOptions {
+  /** npm dist-tag (default: "latest") */
   tag: string;
+  /** Package names to publish (empty = all) */
   filter: string[];
+  /** Only publish packages with this target condition */
   condition?: string;
+  /** Only publish packages that have changed since last publish */
   changed: boolean;
+  /** Preview without actually publishing */
   dryRun: boolean;
 }
 
+/**
+ * Handles the `tsf publish` command.
+ * Packs and publishes packages from the staging directory.
+ */
 export function handlePublish(args: string[]): void {
   const options = parsePublishOptions(args);
   const stagingDir = getPublishStagingDir();

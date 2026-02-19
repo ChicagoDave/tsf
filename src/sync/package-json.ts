@@ -1,8 +1,35 @@
+/**
+ * @fileoverview Package.json field generation and synchronization
+ * @module tsf/sync/package-json
+ *
+ * Generates and updates package.json entry point fields based on build targets.
+ * Handles the complexity of modern package.json exports:
+ * - `main` for CommonJS entry
+ * - `module` for ESM entry
+ * - `types` for TypeScript declarations
+ * - `exports` for conditional exports (Node.js dual-package pattern)
+ * - `bin` for CLI executables
+ *
+ * Also generates clean manifests for npm publish:
+ * - Strips `workspace:*` dependencies (pnpm protocol)
+ * - Removes `devDependencies`
+ * - Sets flat entry points for staging directory
+ */
+
 import * as fs from 'fs';
 import * as path from 'path';
 import type { ResolvedTarget, PackageInfo } from '../types';
 import * as logger from '../utils/logger';
 
+/**
+ * Version range prefix used when resolving workspace:* to real versions.
+ * Uses ^ for semver compatibility (e.g., "workspace:*" → "^0.9.87").
+ */
+const VERSION_RANGE_PREFIX = '^';
+
+/**
+ * Conditional export entry with Node.js-standard conditions.
+ */
 interface ExportsConditions {
   types?: string;
   import?: string;
@@ -10,6 +37,9 @@ interface ExportsConditions {
   default?: string;
 }
 
+/**
+ * Fields generated/updated in package.json.
+ */
 interface GeneratedFields {
   main?: string;
   module?: string;
@@ -18,6 +48,23 @@ interface GeneratedFields {
   bin?: string | Record<string, string>;
 }
 
+// ============================================================================
+// Public API
+// ============================================================================
+
+/**
+ * Syncs package.json with generated entry point fields.
+ * Only updates fields that differ from current values.
+ *
+ * @param pkg - Package to sync
+ * @param targets - Build targets to derive entry points from
+ *
+ * @example
+ * ```typescript
+ * syncPackageJson(pkg, targets);
+ * // package.json now has main, module, types, exports set correctly
+ * ```
+ */
 export function syncPackageJson(
   pkg: PackageInfo,
   targets: ResolvedTarget[],
@@ -50,11 +97,28 @@ export function syncPackageJson(
 }
 
 /**
- * Generate a clean package.json for npm publish.
- * Strips workspace:* deps, devDependencies, and sets entry points
- * relative to the staging dir root (flat output).
+ * Generates a clean package.json for npm publish.
+ *
+ * This is the key to the staging directory approach:
+ * - Entry points are relative to staging root (flat structure)
+ * - `workspace:*` dependencies are stripped (cause EUNSUPPORTEDPROTOCOL errors)
+ * - `devDependencies` are removed (not needed at runtime)
+ * - Build scripts and files config are removed
+ *
+ * The generated manifest goes into `~/.tsf-publish/<pkg>/package.json`,
+ * which becomes the root of the published tarball.
+ *
+ * @param pkg - Package to generate manifest for
+ * @param packages - All workspace packages (for resolving workspace:* versions)
+ * @returns Clean package.json object ready for npm publish
+ *
+ * @example
+ * ```typescript
+ * const manifest = generatePublishManifest(pkg, allPackages);
+ * fs.writeFileSync(stagingDir + '/package.json', JSON.stringify(manifest, null, 2));
+ * ```
  */
-export function generatePublishManifest(pkg: PackageInfo): Record<string, unknown> {
+export function generatePublishManifest(pkg: PackageInfo, packages?: Map<string, PackageInfo>): Record<string, unknown> {
   const pkgJsonPath = path.join(pkg.path, 'package.json');
   const source = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf-8'));
 
@@ -73,8 +137,8 @@ export function generatePublishManifest(pkg: PackageInfo): Record<string, unknow
     },
   };
 
-  // Strip workspace:* from dependencies
-  stripWorkspaceDeps(manifest);
+  // Resolve workspace:* to real version numbers
+  resolveWorkspaceDeps(manifest, packages);
 
   // Remove devDependencies entirely
   delete manifest.devDependencies;
@@ -105,9 +169,113 @@ export function generatePublishManifest(pkg: PackageInfo): Record<string, unknow
   return manifest;
 }
 
+/**
+ * Resolves all `workspace:*` protocol dependencies to real version numbers.
+ *
+ * pnpm uses `workspace:*` to reference other packages in the monorepo,
+ * but npm doesn't understand this protocol. This function replaces them
+ * with the actual versions from the workspace packages' package.json files.
+ *
+ * If no packages map is provided, falls back to reading versions from disk
+ * by looking for package.json in sibling directories.
+ *
+ * @param pkgJson - Package.json object to modify (mutated in place)
+ * @param packages - Workspace packages map for version lookup
+ * @returns Number of dependencies resolved
+ *
+ * @example
+ * ```typescript
+ * const resolved = resolveWorkspaceDeps(manifest, allPackages);
+ * console.log(`Resolved ${resolved} workspace dependencies`);
+ * ```
+ */
+export function resolveWorkspaceDeps(
+  pkgJson: Record<string, unknown>,
+  packages?: Map<string, PackageInfo>,
+): number {
+  let count = 0;
+  for (const field of ['dependencies', 'peerDependencies', 'optionalDependencies']) {
+    const deps = pkgJson[field] as Record<string, string> | undefined;
+    if (!deps) continue;
+    for (const [name, version] of Object.entries(deps)) {
+      if (typeof version === 'string' && version.startsWith('workspace:')) {
+        const resolvedVersion = resolveWorkspaceVersion(name, version, packages);
+        if (resolvedVersion) {
+          deps[name] = resolvedVersion;
+          count++;
+        } else {
+          logger.warn(`Could not resolve workspace version for ${name} — removing`);
+          delete deps[name];
+        }
+      }
+    }
+    // Clean up empty dependency objects
+    if (Object.keys(deps).length === 0) {
+      delete pkgJson[field];
+    }
+  }
+  return count;
+}
+
+/**
+ * Resolves a single workspace:* version specifier to a real version.
+ *
+ * Handles pnpm workspace protocol variants:
+ * - `workspace:*` → `^<version>` (any version in workspace)
+ * - `workspace:^` → `^<version>` (caret range)
+ * - `workspace:~` → `~<version>` (tilde range)
+ * - `workspace:<version>` → `<version>` (exact)
+ */
+function resolveWorkspaceVersion(
+  depName: string,
+  workspaceSpec: string,
+  packages?: Map<string, PackageInfo>,
+): string | null {
+  // Look up the dependency's version from the packages map
+  let depVersion: string | undefined;
+
+  if (packages) {
+    const depPkg = packages.get(depName);
+    if (depPkg?.version) {
+      depVersion = depPkg.version;
+    } else if (depPkg) {
+      // PackageInfo.version might not be set — read from package.json
+      try {
+        const depPkgJson = JSON.parse(fs.readFileSync(path.join(depPkg.path, 'package.json'), 'utf-8'));
+        depVersion = depPkgJson.version;
+      } catch {
+        // fall through
+      }
+    }
+  }
+
+  if (!depVersion) return null;
+
+  // Parse the workspace protocol suffix
+  const suffix = workspaceSpec.slice('workspace:'.length);
+  switch (suffix) {
+    case '*':
+    case '^':
+      return VERSION_RANGE_PREFIX + depVersion;
+    case '~':
+      return '~' + depVersion;
+    default:
+      // workspace:1.2.3 → 1.2.3
+      return suffix || VERSION_RANGE_PREFIX + depVersion;
+  }
+}
+
+/**
+ * Removes all `workspace:*` protocol dependencies from a package.json object.
+ *
+ * @deprecated Use resolveWorkspaceDeps instead, which converts to real versions.
+ *
+ * @param pkgJson - Package.json object to modify (mutated in place)
+ * @returns Number of dependencies stripped
+ */
 export function stripWorkspaceDeps(pkgJson: Record<string, unknown>): number {
   let count = 0;
-  for (const field of ['dependencies', 'devDependencies', 'optionalDependencies']) {
+  for (const field of ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies']) {
     const deps = pkgJson[field] as Record<string, string> | undefined;
     if (!deps) continue;
     for (const [name, version] of Object.entries(deps)) {
@@ -116,6 +284,7 @@ export function stripWorkspaceDeps(pkgJson: Record<string, unknown>): number {
         count++;
       }
     }
+    // Clean up empty dependency objects
     if (Object.keys(deps).length === 0) {
       delete pkgJson[field];
     }
@@ -123,6 +292,21 @@ export function stripWorkspaceDeps(pkgJson: Record<string, unknown>): number {
   return count;
 }
 
+/**
+ * Generates entry point fields from build targets.
+ *
+ * Analyzes targets to find:
+ * - CJS target → `main` field
+ * - ESM target → `module` field
+ * - Declaration target → `types` field
+ * - Shebang target → `bin` field
+ *
+ * Also generates `exports` map for dual-package support.
+ *
+ * @param pkg - Package to generate fields for
+ * @param targets - Build targets to analyze
+ * @returns Generated fields to merge into package.json
+ */
 export function generateFields(
   pkg: PackageInfo,
   targets: ResolvedTarget[],

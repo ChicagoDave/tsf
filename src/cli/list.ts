@@ -1,11 +1,35 @@
+/**
+ * @fileoverview Package listing in dependency order
+ * @module tsf/cli/list
+ *
+ * Lists workspace packages in topological (dependency) order.
+ * Useful for scripting and understanding the build graph.
+ *
+ * @example
+ * ```bash
+ * tsf list                    # List all packages
+ * tsf list --condition publish # List packages with publish target
+ * tsf list --filter @scope/pkg # List specific packages
+ * ```
+ */
+
 import { loadBuildContextPublic, shouldSkipTarget } from '../orchestrator';
 import * as logger from '../utils/logger';
 
+/**
+ * Options for the list command.
+ */
 interface ListOptions {
+  /** Only list packages with this target condition */
   condition?: string;
+  /** Package names to list (empty = all) */
   filter: string[];
 }
 
+/**
+ * Handles the `tsf list` command.
+ * Outputs packages in dependency order.
+ */
 export function handleList(args: string[]): void {
   const options = parseListOptions(args);
 

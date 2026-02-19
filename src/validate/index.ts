@@ -1,16 +1,52 @@
+/**
+ * @fileoverview Build output validation
+ * @module tsf/validate
+ *
+ * Validates that build outputs are complete and correct before publish.
+ * Catches common issues:
+ * - Missing files referenced in package.json (main, types, exports, bin)
+ * - Missing .d.ts files alongside .js (declaration parity)
+ * - Workspace specifiers left in output (import rewriting failures)
+ *
+ * Run with `tsf validate` to check outputs before publishing.
+ */
+
 import * as fs from 'fs';
 import * as path from 'path';
 import type { PackageInfo, ResolvedTarget } from '../types';
 import { shouldSkipTarget } from '../orchestrator';
 import * as logger from '../utils/logger';
 
+/**
+ * A validation issue found in build outputs.
+ */
 export interface ValidationIssue {
+  /** Severity: 'error' prevents publish, 'warning' is informational */
   level: 'error' | 'warning';
+  /** Human-readable description of the issue */
   message: string;
+  /** Path to the problematic file (if applicable) */
   file?: string;
+  /** Suggested fix for the issue */
   fix?: string;
 }
 
+/**
+ * Validates build outputs for a single package.
+ *
+ * Checks:
+ * 1. `main` field points to existing file
+ * 2. `types`/`typings` field points to existing file
+ * 3. `module` field points to existing file
+ * 4. All `exports` conditions resolve to existing files
+ * 5. All `bin` entries point to existing files
+ * 6. Every .js file has a corresponding .d.ts (if declarations enabled)
+ * 7. No workspace specifiers remain in output (if imports != preserve)
+ *
+ * @param pkg - Package to validate
+ * @param targets - Build targets to check
+ * @returns Array of validation issues (empty = valid)
+ */
 export function validatePackageOutputs(
   pkg: PackageInfo,
   targets: ResolvedTarget[],
@@ -107,6 +143,14 @@ export function validatePackageOutputs(
   return issues;
 }
 
+// ============================================================================
+// Internal Validation Helpers
+// ============================================================================
+
+/**
+ * Validates the `exports` field in package.json.
+ * Recursively checks all export conditions resolve to existing files.
+ */
 function validateExports(
   pkg: PackageInfo,
   exports: Record<string, unknown>,
@@ -125,6 +169,7 @@ function validateExports(
         });
       }
     } else if (value && typeof value === 'object') {
+      // Conditional exports: { "import": "./esm.js", "require": "./cjs.js" }
       const conditions = value as Record<string, unknown>;
       for (const [cond, condPath] of Object.entries(conditions)) {
         if (typeof condPath !== 'string') continue;
@@ -142,6 +187,10 @@ function validateExports(
   }
 }
 
+/**
+ * Checks that every .js file has a corresponding .d.ts file.
+ * Missing declarations can cause type errors for consumers.
+ */
 function checkDeclarationParity(outDir: string, issues: ValidationIssue[], targetName: string): void {
   const jsFiles = findFiles(outDir, '.js');
   for (const jsFile of jsFiles) {
@@ -158,9 +207,17 @@ function checkDeclarationParity(outDir: string, issues: ValidationIssue[], targe
   }
 }
 
+/**
+ * Checks for workspace specifiers that weren't rewritten.
+ * These would cause runtime failures for npm consumers.
+ *
+ * Looks for patterns like:
+ * - `require("@scope/pkg")`
+ * - `from "@scope/pkg"`
+ */
 function checkWorkspaceSpecifiers(outDir: string, issues: ValidationIssue[], targetName: string): void {
   const jsFiles = findFiles(outDir, '.js');
-  // Match typical workspace patterns: @scope/package in require() or from ''
+  // Match scoped packages in import/require statements
   const wsPattern = /(?:require\(['"]|from\s+['"])(@[^/'"]+\/[^/'"]+)/g;
 
   for (const jsFile of jsFiles) {
@@ -178,6 +235,9 @@ function checkWorkspaceSpecifiers(outDir: string, issues: ValidationIssue[], tar
   }
 }
 
+/**
+ * Recursively finds all files with a given extension.
+ */
 function findFiles(dir: string, ext: string): string[] {
   const results: string[] = [];
   if (!fs.existsSync(dir)) return results;
@@ -194,6 +254,24 @@ function findFiles(dir: string, ext: string): string[] {
   return results;
 }
 
+// ============================================================================
+// Public API
+// ============================================================================
+
+/**
+ * Runs validation across all workspace packages.
+ * Logs results and returns success status.
+ *
+ * @param packages - All workspace packages
+ * @param targets - Build targets to validate
+ * @returns true if no errors found, false if validation failed
+ *
+ * @example
+ * ```typescript
+ * const valid = runValidation(packages, targets);
+ * if (!valid) process.exit(1);
+ * ```
+ */
 export function runValidation(
   packages: Map<string, PackageInfo>,
   targets: ResolvedTarget[],
