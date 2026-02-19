@@ -167,10 +167,10 @@ export function generatePublishManifest(
 }
 
 /**
- * Convert workspace:* dependencies to real version ranges for publishing.
- * workspace:* → ^<version> using the dep's actual version from the workspace.
- * workspace:^ → ^<version>, workspace:~ → ~<version>.
- * Falls back to stripping if the dep version can't be resolved.
+ * Convert workspace:* and file: dependencies to real version ranges for publishing.
+ * workspace:* → ^<version>, workspace:^ → ^<version>, workspace:~ → ~<version>.
+ * file:../path → ^<version> using the dep's actual version from the workspace.
+ * Falls back to removing the dep if the version can't be resolved.
  */
 function resolveWorkspaceDeps(
   pkgJson: Record<string, unknown>,
@@ -180,22 +180,32 @@ function resolveWorkspaceDeps(
     const deps = pkgJson[field] as Record<string, string> | undefined;
     if (!deps) continue;
     for (const [name, version] of Object.entries(deps)) {
-      if (typeof version !== 'string' || !version.startsWith('workspace:')) continue;
+      if (typeof version !== 'string') continue;
 
-      const depPkg = workspacePackages?.get(name);
-      const depVersion = depPkg?.version;
-      if (!depVersion) {
-        delete deps[name];
-        continue;
-      }
+      if (version.startsWith('workspace:')) {
+        const depPkg = workspacePackages?.get(name);
+        const depVersion = depPkg?.version;
+        if (!depVersion) {
+          delete deps[name];
+          continue;
+        }
 
-      const protocol = version.slice('workspace:'.length); // *, ^, ~, or a version
-      if (protocol === '*' || protocol === '^') {
+        const protocol = version.slice('workspace:'.length); // *, ^, ~, or a version
+        if (protocol === '*' || protocol === '^') {
+          deps[name] = '^' + depVersion;
+        } else if (protocol === '~') {
+          deps[name] = '~' + depVersion;
+        } else {
+          deps[name] = depVersion;
+        }
+      } else if (version.startsWith('file:') || version.startsWith('link:')) {
+        const depPkg = workspacePackages?.get(name);
+        const depVersion = depPkg?.version;
+        if (!depVersion) {
+          delete deps[name];
+          continue;
+        }
         deps[name] = '^' + depVersion;
-      } else if (protocol === '~') {
-        deps[name] = '~' + depVersion;
-      } else {
-        deps[name] = depVersion;
       }
     }
     if (Object.keys(deps).length === 0) {
@@ -211,7 +221,8 @@ export function stripWorkspaceDeps(pkgJson: Record<string, unknown>): number {
     const deps = pkgJson[field] as Record<string, string> | undefined;
     if (!deps) continue;
     for (const [name, version] of Object.entries(deps)) {
-      if (typeof version === 'string' && version.startsWith('workspace:')) {
+      if (typeof version === 'string' &&
+          (version.startsWith('workspace:') || version.startsWith('file:') || version.startsWith('link:'))) {
         delete deps[name];
         count++;
       }

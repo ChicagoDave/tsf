@@ -423,6 +423,11 @@ async function buildPackageTarget(
 
   // Transform imports (skip for bundle targets — bundler handles resolution)
   if (!isBundle) {
+    // In npm mode, imports was set to 'preserve' for tsc compilation but the
+    // post-compile transform still needs to rewrite workspace imports to relative paths.
+    if (npmStagingDir) {
+      resolvedTarget = { ...resolvedTarget, config: { ...resolvedTarget.config, imports: 'relative' } };
+    }
     transformImports(pkg, resolvedTarget, ctx.packages);
     transformDeclarations(pkg, resolvedTarget, ctx.packages);
   }

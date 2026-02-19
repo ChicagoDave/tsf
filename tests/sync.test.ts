@@ -141,6 +141,15 @@ describe('stripWorkspaceDeps', () => {
     expect(pkgJson.optionalDependencies).toEqual({ e: '1.0.0' });
   });
 
+  it('removes file: and link: entries', () => {
+    const pkgJson: Record<string, unknown> = {
+      dependencies: { a: 'file:../a', b: 'link:../b', c: '^1.0.0' },
+    };
+    const count = stripWorkspaceDeps(pkgJson);
+    expect(count).toBe(2);
+    expect(pkgJson.dependencies).toEqual({ c: '^1.0.0' });
+  });
+
   it('returns 0 when no workspace deps exist', () => {
     const pkgJson: Record<string, unknown> = {
       dependencies: { a: '^1.0.0' },
@@ -181,6 +190,62 @@ describe('generatePublishManifest', () => {
     expect(exports['.']).toBeDefined();
     expect(exports['.'].require).toBe('./index.js');
     expect(exports['.'].types).toBe('./index.d.ts');
+  });
+
+  it('resolves workspace: deps to real versions', () => {
+    fs.writeFileSync(
+      path.join(TMP_DIR, 'package.json'),
+      JSON.stringify({
+        name: '@test/lib',
+        version: '1.0.0',
+        dependencies: { '@test/core': 'workspace:*', '@test/utils': 'workspace:^', '@test/data': 'workspace:~' },
+      }),
+    );
+    const packages = new Map<string, PackageInfo>([
+      ['@test/core', makePkg({ name: '@test/core', version: '2.0.0' })],
+      ['@test/utils', makePkg({ name: '@test/utils', version: '3.1.0' })],
+      ['@test/data', makePkg({ name: '@test/data', version: '0.5.0' })],
+    ]);
+    const manifest = generatePublishManifest(makePkg(), packages);
+    const deps = manifest.dependencies as Record<string, string>;
+    expect(deps['@test/core']).toBe('^2.0.0');
+    expect(deps['@test/utils']).toBe('^3.1.0');
+    expect(deps['@test/data']).toBe('~0.5.0');
+  });
+
+  it('resolves file: and link: deps to real versions', () => {
+    fs.writeFileSync(
+      path.join(TMP_DIR, 'package.json'),
+      JSON.stringify({
+        name: '@test/lib',
+        version: '1.0.0',
+        dependencies: { '@test/core': 'file:../core', '@test/utils': 'link:../utils', 'lodash': '^4.0.0' },
+      }),
+    );
+    const packages = new Map<string, PackageInfo>([
+      ['@test/core', makePkg({ name: '@test/core', version: '2.0.0' })],
+      ['@test/utils', makePkg({ name: '@test/utils', version: '3.1.0' })],
+    ]);
+    const manifest = generatePublishManifest(makePkg(), packages);
+    const deps = manifest.dependencies as Record<string, string>;
+    expect(deps['@test/core']).toBe('^2.0.0');
+    expect(deps['@test/utils']).toBe('^3.1.0');
+    expect(deps['lodash']).toBe('^4.0.0');
+  });
+
+  it('removes file: deps when version cannot be resolved', () => {
+    fs.writeFileSync(
+      path.join(TMP_DIR, 'package.json'),
+      JSON.stringify({
+        name: '@test/lib',
+        version: '1.0.0',
+        dependencies: { '@test/unknown': 'file:../unknown', 'lodash': '^4.0.0' },
+      }),
+    );
+    const manifest = generatePublishManifest(makePkg(), new Map());
+    const deps = manifest.dependencies as Record<string, string>;
+    expect(deps['@test/unknown']).toBeUndefined();
+    expect(deps['lodash']).toBe('^4.0.0');
   });
 
   it('does not modify source package.json', () => {
