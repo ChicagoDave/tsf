@@ -25,6 +25,7 @@
 import { loadBuildContextPublic, shouldSkipTarget } from '../orchestrator';
 import { detectChanged } from './changed';
 import * as logger from '../utils/logger';
+import { parsePackageFlag, resolvePackageFilters } from '../utils/package-filter';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -67,6 +68,11 @@ export function handleVersion(args: string[]): void {
 
   const ctx = loadBuildContextPublic();
   if (!ctx) return;
+
+  // Resolve short package names (e.g., "stdlib" → "@sharpee/stdlib")
+  if (options.filter.length > 0) {
+    options.filter = resolvePackageFilters(options.filter, ctx.packages);
+  }
 
   let packages = [...ctx.packages.values()];
 
@@ -179,6 +185,12 @@ function parseVersionOptions(args: string[]): VersionOptions {
       case '--filter':
         options.filter.push(args[++i]);
         break;
+      case '--package':
+      case '--packageList': {
+        const newI = parsePackageFlag(arg, args, i, options.filter);
+        if (newI >= 0) i = newI;
+        break;
+      }
       case '--condition':
         options.condition = args[++i];
         break;

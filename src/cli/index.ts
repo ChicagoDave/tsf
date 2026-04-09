@@ -39,6 +39,7 @@ import { syncPackageJson } from '../sync/package-json';
 import { runValidation } from '../validate';
 import { setVerbose } from '../utils/logger';
 import * as logger from '../utils/logger';
+import { parsePackageFlag } from '../utils/package-filter';
 import { handleVersion } from './version';
 import { handlePublish } from './publish';
 import { handleList } from './list';
@@ -197,6 +198,13 @@ function parseBuildOptions(args: string[]): BuildOptions {
         if (!options.filter) options.filter = [];
         options.filter.push(args[++i]);
         break;
+      case '--package':
+      case '--packageList': {
+        if (!options.filter) options.filter = [];
+        const newI = parsePackageFlag(arg, args, i, options.filter);
+        if (newI >= 0) i = newI;
+        break;
+      }
       case '--local':
         // Explicit local mode (default behavior)
         break;
@@ -233,6 +241,8 @@ Options:
   --condition <name>    Build targets matching condition
   --all                 Build all targets (default: unconditional only)
   --filter <name>       Restrict to specific package(s), repeatable
+  --package <name>      Restrict to a single package by short name (e.g., stdlib)
+  --packageList <a,b>   Restrict to packages by short names, comma-separated
   --check               Enable type checking before build
   --no-check            Skip type checking
   --clean               Remove output dirs before build
@@ -257,6 +267,8 @@ Options:
   --preid <tag>         Prerelease identifier (default: beta)
   --condition <name>    Only packages matching target condition (e.g., publish)
   --filter <name>       Restrict to specific package(s), repeatable
+  --package <name>      Restrict to a single package by short name (e.g., stdlib)
+  --packageList <a,b>   Restrict to packages by short names, comma-separated
   --changed             Only bump packages that changed since last publish
   --dry-run             Show changes without writing
 
@@ -283,6 +295,8 @@ Compares each package against the npm registry. A package is "changed" if:
 Options:
   --condition <name>    Only packages matching target condition (e.g., publish)
   --filter <name>       Restrict to specific package(s), repeatable
+  --package <name>      Restrict to a single package by short name (e.g., stdlib)
+  --packageList <a,b>   Restrict to packages by short names, comma-separated
 
 Examples:
   ts-forge changed --condition publish
@@ -302,6 +316,8 @@ packages match a condition.
 Options:
   --condition <name>    Only packages matching target condition (e.g., publish)
   --filter <name>       Restrict to specific package(s), repeatable
+  --package <name>      Restrict to a single package by short name (e.g., stdlib)
+  --packageList <a,b>   Restrict to packages by short names, comma-separated
 
 Examples:
   ts-forge list
@@ -324,6 +340,8 @@ Options:
   --tag <tag>           npm dist-tag (default: latest)
   --condition <name>    Only packages matching target condition (e.g., publish)
   --filter <name>       Restrict to specific package(s), repeatable
+  --package <name>      Restrict to a single package by short name (e.g., stdlib)
+  --packageList <a,b>   Restrict to packages by short names, comma-separated
   --changed             Only publish packages with version > npm registry
   --dry-run             Pass --dry-run to npm publish
 

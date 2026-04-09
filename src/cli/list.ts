@@ -15,6 +15,7 @@
 
 import { loadBuildContextPublic, shouldSkipTarget } from '../orchestrator';
 import * as logger from '../utils/logger';
+import { parsePackageFlag, resolvePackageFilters } from '../utils/package-filter';
 
 /**
  * Options for the list command.
@@ -35,6 +36,11 @@ export function handleList(args: string[]): void {
 
   const ctx = loadBuildContextPublic();
   if (!ctx) return;
+
+  // Resolve short package names (e.g., "stdlib" → "@sharpee/stdlib")
+  if (options.filter.length > 0) {
+    options.filter = resolvePackageFilters(options.filter, ctx.packages);
+  }
 
   let packages = [...ctx.packages.values()];
 
@@ -74,6 +80,12 @@ function parseListOptions(args: string[]): ListOptions {
       case '--filter':
         options.filter.push(args[++i]);
         break;
+      case '--package':
+      case '--packageList': {
+        const newI = parsePackageFlag(arg, args, i, options.filter);
+        if (newI >= 0) i = newI;
+        break;
+      }
       default:
         if (arg.startsWith('-')) {
           logger.warn(`Unknown option: ${arg}`);

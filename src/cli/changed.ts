@@ -25,6 +25,7 @@ import * as path from 'path';
 import { loadBuildContextPublic, shouldSkipTarget } from '../orchestrator';
 import type { PackageInfo } from '../types';
 import * as logger from '../utils/logger';
+import { parsePackageFlag, resolvePackageFilters } from '../utils/package-filter';
 
 /**
  * Options for change detection.
@@ -65,6 +66,11 @@ export interface ChangedPackage {
 export function detectChanged(options: { condition?: string; filter: string[] }): ChangedPackage[] {
   const ctx = loadBuildContextPublic();
   if (!ctx) return [];
+
+  // Resolve short package names (e.g., "stdlib" → "@sharpee/stdlib")
+  if (options.filter.length > 0) {
+    options.filter = resolvePackageFilters(options.filter, ctx.packages);
+  }
 
   let packages = [...ctx.packages.values()];
 
@@ -197,6 +203,12 @@ function parseChangedOptions(args: string[]): ChangedOptions {
       case '--filter':
         options.filter.push(args[++i]);
         break;
+      case '--package':
+      case '--packageList': {
+        const newI = parsePackageFlag(arg, args, i, options.filter);
+        if (newI >= 0) i = newI;
+        break;
+      }
       default:
         if (arg.startsWith('-')) {
           logger.warn(`Unknown option: ${arg}`);

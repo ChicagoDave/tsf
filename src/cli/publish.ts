@@ -30,6 +30,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { loadBuildContextPublic, shouldSkipTarget, getPublishStagingDir } from '../orchestrator';
 import * as logger from '../utils/logger';
+import { parsePackageFlag, resolvePackageFilters } from '../utils/package-filter';
 
 /**
  * Options for the publish command.
@@ -63,6 +64,11 @@ export function handlePublish(args: string[]): void {
 
   const ctx = loadBuildContextPublic();
   if (!ctx) return;
+
+  // Resolve short package names (e.g., "stdlib" → "@sharpee/stdlib")
+  if (options.filter.length > 0) {
+    options.filter = resolvePackageFilters(options.filter, ctx.packages);
+  }
 
   // Find publishable packages
   const allPackages = [...ctx.packages.values()];
@@ -225,6 +231,12 @@ function parsePublishOptions(args: string[]): PublishOptions {
       case '--filter':
         options.filter.push(args[++i]);
         break;
+      case '--package':
+      case '--packageList': {
+        const newI = parsePackageFlag(arg, args, i, options.filter);
+        if (newI >= 0) i = newI;
+        break;
+      }
       case '--condition':
         options.condition = args[++i];
         break;

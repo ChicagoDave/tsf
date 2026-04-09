@@ -55,6 +55,7 @@ import { createWatcher } from '../watcher';
 import { globSync } from 'glob';
 import * as os from 'os';
 import * as logger from '../utils/logger';
+import { resolvePackageFilters } from '../utils/package-filter';
 import { generatePublishManifest } from '../sync/package-json';
 
 /**
@@ -92,6 +93,11 @@ export async function build(options: BuildOptions): Promise<boolean> {
       logger.warn('No targets to build. Use --all, --target, or --condition to select targets.');
       return true;
     }
+  }
+
+  // Resolve short package names (e.g., "stdlib" → "@sharpee/stdlib")
+  if (options.filter && options.filter.length > 0) {
+    options.filter = resolvePackageFilters(options.filter, ctx.packages);
   }
 
   // Compute applicable packages (respects shouldSkipTarget and --filter)
