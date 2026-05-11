@@ -48,7 +48,7 @@ import { resolvePackages } from '../resolver/packages';
 import { getBuildOrder } from '../resolver/graph';
 import { getCompiler, getBundler } from '../compilers';
 import { fixBrokenRelativeImports } from '../compilers/tsc';
-import { transformImports } from '../transform/imports';
+import { transformImports, transformEsmExtensions } from '../transform/imports';
 import { transformDeclarations } from '../transform/declarations';
 import { computeCacheKey, isCached, recordBuild, cleanCache } from '../cache';
 import { createWatcher } from '../watcher';
@@ -435,6 +435,7 @@ async function buildPackageTarget(
       resolvedTarget = { ...resolvedTarget, config: { ...resolvedTarget.config, imports: 'relative' } };
     }
     transformImports(pkg, resolvedTarget, ctx.packages);
+    transformEsmExtensions(pkg, resolvedTarget);
     transformDeclarations(pkg, resolvedTarget, ctx.packages);
   }
 

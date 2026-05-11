@@ -39,14 +39,32 @@ const REQUIRE_RE = /require\(["']([^"']+)["']\)/g;
 /**
  * Matches ESM import/export with `from` clause.
  * Captures: import/export ... from "specifier"
+ *
+ * `s` flag (dotall) lets `.` cross newlines so multi-line forms like:
+ *
+ *     export {
+ *       A,
+ *       B,
+ *     } from './source';
+ *
+ * are also matched. The `.*?` stays non-greedy and terminates at the
+ * first `\s+from\s+` boundary.
  */
-const ESM_FROM_RE = /((?:import|export)\s+.*?\s+from\s+)["']([^"']+)["']/g;
+const ESM_FROM_RE = /((?:import|export)\s+.*?\s+from\s+)["']([^"']+)["']/gs;
 
 /**
  * Matches side-effect imports (no bindings).
  * Captures: import "specifier"
  */
 const ESM_SIDE_EFFECT_RE = /(import\s+)["']([^"']+)["']/g;
+
+/**
+ * Matches dynamic `import("specifier")` calls.
+ * Captures the leading `import(` (plus optional whitespace) so the
+ * replacement can preserve formatting. The closing paren is consumed
+ * by the match but emitted explicitly by the rewriter.
+ */
+const ESM_DYNAMIC_RE = /(\bimport\s*\(\s*)["']([^"']+)["']\s*\)/g;
 
 // ============================================================================
 // Public API
@@ -262,4 +280,136 @@ function getSubpath(specifier: string, packageName: string): string | null {
     return specifier.slice(packageName.length + 1);
   }
   return null;
+}
+
+// ============================================================================
+// ESM extension transform
+// ============================================================================
+
+/**
+ * Append Node-ESM-required file extensions to relative import specifiers
+ * in emitted JS files. Idempotent.
+ *
+ * TypeScript compilation preserves source-level `from './foo'` literally
+ * in the output. Bundler-style module resolution (Vite, esbuild, webpack)
+ * tolerates this; strict Node ESM (Node 22+) does not — it refuses
+ * directory imports and bare relative imports without extensions. The
+ * net effect is that an `@scope/pkg` ESM build with the source pattern
+ * `export * from './foo'` cannot be consumed by `node --input-type=module`
+ * or by a downstream `.mjs` dynamic import.
+ *
+ * This pass scans every emitted JS file under `target.config.outDir`
+ * and rewrites relative specifiers as follows:
+ *
+ *   - `./foo` → `./foo.js`        when `./foo.js` exists as a file
+ *   - `./foo` → `./foo/index.js`  when `./foo/index.js` exists
+ *   - `./foo.js` (already extensioned) — left alone
+ *   - `./data.json` (recognised extension) — left alone
+ *   - `@scope/pkg`, `lodash`, `node:fs` — bare/absolute, left alone
+ *
+ * Only runs when `target.config.esmExtensions === true`. Safe to enable
+ * on CJS targets (CJS allows directory imports, but the rewrite is
+ * additive and won't break `require()` resolution).
+ *
+ * Covers static `import`/`export ... from`, side-effect `import "..."`,
+ * and dynamic `import("...")`. Does **not** rewrite `require()` because
+ * CJS resolves directory imports natively; if a future target needs
+ * both passes, run this one after `transformImports`.
+ *
+ * @param pkg - Package being transformed
+ * @param target - Build target configuration (must have `outDir` and
+ *   `esmExtensions: true`)
+ */
+export function transformEsmExtensions(
+  pkg: PackageInfo,
+  target: ResolvedTarget,
+): void {
+  if (!target.config.esmExtensions) return;
+
+  const outDir = path.resolve(pkg.path, target.config.outDir!);
+  if (!fs.existsSync(outDir)) return;
+
+  const jsFiles = globSync('**/*.js', { cwd: outDir, absolute: true });
+  const context = `${pkg.name}:${target.name}`;
+
+  for (const file of jsFiles) {
+    let content = fs.readFileSync(file, 'utf-8');
+    let changed = false;
+
+    const rewrite = (specifier: string): string => {
+      const next = resolveRelativeWithExtension(specifier, file);
+      if (next !== specifier) changed = true;
+      return next;
+    };
+
+    content = content.replace(ESM_FROM_RE, (match, prefix: string, spec: string) => {
+      const next = rewrite(spec);
+      return next === spec ? match : `${prefix}"${next}"`;
+    });
+
+    content = content.replace(ESM_SIDE_EFFECT_RE, (match, prefix: string, spec: string) => {
+      const next = rewrite(spec);
+      return next === spec ? match : `${prefix}"${next}"`;
+    });
+
+    content = content.replace(ESM_DYNAMIC_RE, (match, prefix: string, spec: string) => {
+      const next = rewrite(spec);
+      return next === spec ? match : `${prefix}"${next}")`;
+    });
+
+    if (changed) {
+      fs.writeFileSync(file, content, 'utf-8');
+      logger.verbose(
+        `Added ESM extensions in ${path.relative(outDir, file)}`,
+        context,
+      );
+    }
+  }
+}
+
+/**
+ * Resolve a relative specifier against the importing file and return
+ * the specifier with an explicit Node-ESM-compatible extension.
+ *
+ * @param specifier - The original `from` / `import()` specifier
+ * @param fromFile - Absolute path to the file containing the import
+ * @returns The specifier unchanged if it isn't relative, is already
+ *   extensioned, or doesn't resolve to a file/directory on disk;
+ *   otherwise the same specifier with `.js` or `/index.js` appended.
+ */
+function resolveRelativeWithExtension(
+  specifier: string,
+  fromFile: string,
+): string {
+  // Only operate on relative paths. Bare specifiers, `node:` URLs,
+  // `http(s):` URLs, and absolute paths are out of scope.
+  if (!specifier.startsWith('./') && !specifier.startsWith('../')) {
+    return specifier;
+  }
+
+  // Already extensioned (`.js`, `.mjs`, `.cjs`, `.json`) — leave it.
+  // Idempotent: re-running the pass on its own output is a no-op.
+  if (/\.(c?js|mjs|json)$/.test(specifier)) {
+    return specifier;
+  }
+
+  const fromDir = path.dirname(fromFile);
+  // `path.resolve` strips any trailing `/` from the specifier, so we
+  // record whether the specifier ended with one to preserve it on the
+  // directory case below.
+  const endedWithSlash = specifier.endsWith('/');
+  const resolved = path.resolve(fromDir, specifier);
+
+  if (fs.existsSync(resolved + '.js') && fs.statSync(resolved + '.js').isFile()) {
+    return specifier + '.js';
+  }
+  const indexCandidate = path.join(resolved, 'index.js');
+  if (fs.existsSync(indexCandidate) && fs.statSync(indexCandidate).isFile()) {
+    return specifier + (endedWithSlash ? '' : '/') + 'index.js';
+  }
+
+  // Unresolvable — leave alone. The rewriter is conservative; if a
+  // downstream tool needs the import resolved differently, that's the
+  // tool's call to make.
+  return specifier;
 }

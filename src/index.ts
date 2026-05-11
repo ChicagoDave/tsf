@@ -74,7 +74,7 @@ export { bundleWithRollup } from './compilers/rollup-bundler';
 // Output Transformation
 // ============================================================================
 
-export { transformImports } from './transform/imports';
+export { transformImports, transformEsmExtensions } from './transform/imports';
 export { transformDeclarations } from './transform/declarations';
 
 // ============================================================================

@@ -97,6 +97,19 @@ export interface TargetConfig {
   clean?: boolean;
   /** Path to import map JSON for specifier-map strategy */
   importMap?: string;
+  /**
+   * When true, append Node-ESM-required file extensions to relative
+   * import specifiers in emitted JS files:
+   * - `./foo` becomes `./foo.js` when `./foo.js` exists in the output
+   * - `./foo` becomes `./foo/index.js` when `./foo/index.js` exists
+   *
+   * Defaults to false. Required for ESM output that will be consumed
+   * by strict Node ESM (Node 22+ with `--input-type=module` or `"type":
+   * "module"` packages). Idempotent — already-extensioned specifiers
+   * are left alone. Only relative paths are rewritten; bare specifiers
+   * (`@scope/pkg`, `lodash`) are handled by the `imports` strategy.
+   */
+  esmExtensions?: boolean;
 }
 
 /**
