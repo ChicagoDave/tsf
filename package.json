@@ -1,6 +1,6 @@
 {
   "name": "@davidcornelson/tsf",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Multi-target TypeScript build tool for monorepos",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
