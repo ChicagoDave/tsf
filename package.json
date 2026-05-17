@@ -1,5 +1,5 @@
 {
-  "name": "tsf",
+  "name": "@davidcornelson/tsf",
   "version": "0.1.0",
   "description": "Multi-target TypeScript build tool for monorepos",
   "main": "dist/index.js",
@@ -7,10 +7,16 @@
   "bin": {
     "tsf": "dist/cli/index.js"
   },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsc",
     "test": "vitest",
-    "dev": "tsc --watch"
+    "dev": "tsc --watch",
+    "prepublishOnly": "pnpm build"
   },
   "keywords": [
     "typescript",
@@ -21,6 +27,9 @@
     "esm"
   ],
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "engines": {
     "node": ">=18"
   },

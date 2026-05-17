@@ -63,9 +63,9 @@ Declarations are rewritten too. No manual work. No build script.
 ## Install
 
 ```bash
-pnpm add -D tsf
+pnpm add -D @davidcornelson/tsf
 # or
-npm install -D tsf
+npm install -D @davidcornelson/tsf
 ```
 
 ## Quick Start

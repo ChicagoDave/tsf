@@ -27,7 +27,7 @@
  *
  * @example
  * ```typescript
- * import { build } from 'tsf';
+ * import { build } from '@davidcornelson/tsf';
  *
  * await build({ target: ['local'] });           // Local dev build
  * await build({ npm: true });                    // NPM publish build
