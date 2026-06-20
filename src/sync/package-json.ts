@@ -144,6 +144,9 @@ export function generatePublishManifest(
   delete manifest.scripts;
   delete manifest.files;
   delete manifest.module;
+  // tsf publishes CommonJS, so a source "type":"module" would mislabel the emitted CJS
+  // (ESM consumers would read `exports`/`require` as undefined). Drop it so .js defaults to CJS.
+  delete manifest.type;
 
   // Rewrite bin paths — source paths like ./dist-npm/cli/index.js become ./cli/index.js
   if (manifest.bin) {
