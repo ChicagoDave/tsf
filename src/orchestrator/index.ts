@@ -168,10 +168,18 @@ export async function build(options: BuildOptions): Promise<boolean> {
 
         let finalConfig = { ...targetConfig, imports: targetConfig.imports ?? 'preserve' };
 
-        // In npm mode, redirect output to staging dir and preserve package specifiers
+        // In npm mode, compile with `preserve` so tsc keeps package specifiers
+        // and skips rootDir widening; carry the configured publish-import style
+        // (default 'relative' for back-compat) in `publishImports` for the
+        // post-compile transform to honor.
         if (isNpmBuild && npmStagingDir) {
           const pkgStagingDir = path.join(npmStagingDir, pkg.name.replace(/^@/, ''));
-          finalConfig = { ...finalConfig, outDir: pkgStagingDir, imports: 'preserve' };
+          finalConfig = {
+            ...finalConfig,
+            outDir: pkgStagingDir,
+            publishImports: targetConfig.imports ?? 'relative',
+            imports: 'preserve',
+          };
         }
 
         const resolvedTarget: ResolvedTarget = {
@@ -429,10 +437,21 @@ async function buildPackageTarget(
 
   // Transform imports (skip for bundle targets — bundler handles resolution)
   if (!isBundle) {
-    // In npm mode, imports was set to 'preserve' for tsc compilation but the
-    // post-compile transform still needs to rewrite workspace imports to relative paths.
+    // In npm mode, imports was masked to 'preserve' for tsc; the post-compile
+    // transform now applies the configured publish-import style. `relative`
+    // rewriting assumes the consumer hoists every `@scope/*` dependency flat
+    // (so `../dep/index.js` resolves between siblings) — fragile for packages
+    // with nested output files and/or deps that npm/pnpm nests under their own
+    // node_modules. `preserve` keeps bare specifiers that Node resolves via the
+    // normal node_modules walk-up regardless of layout. Precedence: per-package
+    // `ts-forge.json` override, then the target's configured `imports`
+    // (threaded as `publishImports`), defaulting to `relative` for back-compat.
     if (npmStagingDir) {
-      resolvedTarget = { ...resolvedTarget, config: { ...resolvedTarget.config, imports: 'relative' } };
+      const pkgOverride = loadPackageOverride(pkg.path)?.targets?.[resolvedTarget.name]?.imports;
+      const publishImports = pkgOverride ?? resolvedTarget.config.publishImports ?? 'relative';
+      if (publishImports !== 'preserve') {
+        resolvedTarget = { ...resolvedTarget, config: { ...resolvedTarget.config, imports: 'relative' } };
+      }
     }
     transformImports(pkg, resolvedTarget, ctx.packages);
     transformEsmExtensions(pkg, resolvedTarget);

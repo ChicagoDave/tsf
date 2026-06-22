@@ -69,6 +69,13 @@ export interface TargetConfig {
   outFile?: string;
   /** How to handle workspace imports in output */
   imports?: ImportStrategy;
+  /**
+   * npm-publish-only: the workspace-import style for the post-compile transform,
+   * preserved past the temporary `imports: 'preserve'` mask applied during the
+   * tsc step (the mask suppresses rootDir widening). Set internally by the
+   * orchestrator from the target's configured `imports`; not authored directly.
+   */
+  publishImports?: ImportStrategy;
   /** How relative imports are calculated: 'path' (../pkg/dist) or 'peer' (../pkg) */
   relativeMode?: 'path' | 'peer';
   /** Generate .d.ts declaration files */
