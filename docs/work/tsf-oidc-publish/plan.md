@@ -3,7 +3,7 @@
 **Source**: `../sharpee_v2/docs/publish/npm-ci.md` (Part A + §10.3), read 2026-07-25.
 **Goal**: Release `@davidcornelson/tsf@1.0.1` so Sharpee's CI can run `tsf publish`
 under npm trusted publishing (OIDC), where `npm whoami` always fails.
-**Status**: Phases 1–3 complete (committed); Phase 4 (manual publish) pending — David
+**Status**: COMPLETE — 1.0.1 published to npm 2026-07-25; remaining work is sharpee-side (Parts B–E)
 
 ## References consulted
 
