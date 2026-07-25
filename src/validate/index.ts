@@ -159,8 +159,7 @@ function validateExports(
 ): void {
   for (const [key, value] of Object.entries(exports)) {
     if (typeof value === 'string') {
-      const resolved = path.resolve(pkg.path, value);
-      if (!fs.existsSync(resolved)) {
+      if (!exportTargetExists(pkg.path, value)) {
         issues.push({
           level: 'error',
           message: `exports["${key}"] points to "${value}" which does not exist`,
@@ -173,8 +172,7 @@ function validateExports(
       const conditions = value as Record<string, unknown>;
       for (const [cond, condPath] of Object.entries(conditions)) {
         if (typeof condPath !== 'string') continue;
-        const resolved = path.resolve(pkg.path, condPath);
-        if (!fs.existsSync(resolved)) {
+        if (!exportTargetExists(pkg.path, condPath)) {
           issues.push({
             level: 'error',
             message: `exports["${key}"].${cond} points to "${condPath}" which does not exist`,
@@ -185,6 +183,70 @@ function validateExports(
       }
     }
   }
+}
+
+/**
+ * Does an exports target path exist? Handles npm subpath patterns: a path
+ * containing `*` (e.g. "./styles/*") is a wildcard that npm expands at
+ * resolve time, so a literal existence check can never pass. For patterns
+ * the check is: at least one file exists under the pattern's static prefix
+ * whose path ends with the static suffix. This is deliberately lenient —
+ * the goal is catching missing build output, not reimplementing npm's
+ * resolver.
+ *
+ * @param pkgPath - Absolute package directory
+ * @param target - The exports target path (may contain one `*`)
+ * @returns true if the literal file exists, or the pattern matches ≥1 file
+ */
+export function exportTargetExists(pkgPath: string, target: string): boolean {
+  const starIdx = target.indexOf('*');
+  if (starIdx === -1) {
+    return fs.existsSync(path.resolve(pkgPath, target));
+  }
+  const prefix = target.slice(0, starIdx);
+  const suffix = target.slice(starIdx + 1);
+  // The deepest directory fully specified before the `*` — for "./styles/*"
+  // that's "./styles"; for "./dist/chunk-*.js" it's "./dist".
+  const prefixDir = path.resolve(
+    pkgPath,
+    prefix.endsWith('/') ? prefix : path.dirname(prefix),
+  );
+  if (!fs.existsSync(prefixDir)) return false;
+  const stack = [prefixDir];
+  while (stack.length > 0) {
+    const dir = stack.pop()!;
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) stack.push(full);
+      else if (suffix === '' || full.endsWith(suffix)) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Filters a workspace package map down to publishable packages — those whose
+ * package.json carries a `publishConfig`. Used by `tsf validate --publish` so
+ * the publish gate ignores workspace members (stories, fixtures) that are
+ * built but never published.
+ *
+ * @param packages - All workspace packages, keyed by name
+ * @returns A new map containing only publishable packages
+ */
+export function filterPublishablePackages(
+  packages: Map<string, PackageInfo>,
+): Map<string, PackageInfo> {
+  const out = new Map<string, PackageInfo>();
+  for (const [name, pkg] of packages) {
+    const pkgJsonPath = path.join(pkg.path, 'package.json');
+    try {
+      const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf-8'));
+      if (pkgJson.publishConfig && pkgJson.private !== true) out.set(name, pkg);
+    } catch {
+      // unreadable manifest — not publishable
+    }
+  }
+  return out;
 }
 
 /**

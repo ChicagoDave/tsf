@@ -36,7 +36,7 @@ import { build, buildWatch, check, info, loadBuildContextPublic, shouldSkipTarge
 import { init } from './init';
 import { generateGitHubAction } from './gh-action';
 import { syncPackageJson } from '../sync/package-json';
-import { runValidation } from '../validate';
+import { runValidation, filterPublishablePackages } from '../validate';
 import { setVerbose } from '../utils/logger';
 import * as logger from '../utils/logger';
 import { parsePackageFlag } from '../utils/package-filter';
@@ -88,7 +88,7 @@ function main(): void {
       break;
     case 'validate':
       if (wantsHelp) { printValidateHelp(); return; }
-      handleValidate();
+      handleValidate(subArgs);
       break;
     case 'gh-action':
       if (wantsHelp) { printCommandHelp('gh-action', 'Generate .github/workflows/tsf.yml with auto-detected package manager\nand Node.js version matrix.'); return; }
@@ -143,11 +143,18 @@ function handleSync(): void {
   }
 }
 
-function handleValidate(): void {
+function handleValidate(args: string[] = []): void {
   const ctx = loadBuildContextPublic();
   if (!ctx) return;
 
-  const valid = runValidation(ctx.packages, ctx.targets);
+  // --publish: gate only the packages that will actually be published
+  // (publishConfig present, not private) — workspace members like stories
+  // are built but never shipped, so their outputs are not a publish concern.
+  const packages = args.includes('--publish')
+    ? filterPublishablePackages(ctx.packages)
+    : ctx.packages;
+
+  const valid = runValidation(packages, ctx.targets);
   if (!valid) process.exit(1);
 }
 
@@ -356,8 +363,13 @@ function printValidateHelp(): void {
   console.log(`
 ts-forge validate — Verify build outputs.
 
+Options:
+  --publish             Validate only publishable packages (publishConfig
+                        present, not private) — use as a publish gate
+
 Checks:
-  - Entry points declared in package.json exist on disk
+  - Entry points declared in package.json exist on disk (wildcard subpath
+    patterns like "./styles/*" pass when the pattern matches ≥1 file)
   - Declaration files (.d.ts) exist alongside JavaScript files
   - No workspace specifiers leaked into non-preserve output
 
