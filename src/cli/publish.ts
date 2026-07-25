@@ -126,16 +126,7 @@ export function handlePublish(args: string[]): void {
     process.exit(1);
   }
 
-  // Check npm login (skip for dry-run)
-  if (!options.dryRun) {
-    try {
-      const user = execSync('npm whoami', { stdio: 'pipe' }).toString().trim();
-      logger.info(`Logged in to npm as ${user}`);
-    } catch {
-      logger.error('Not logged in to npm. Run `npm login` first.');
-      process.exit(1);
-    }
-  }
+  checkNpmLogin(options.dryRun);
 
   // Build ordered list from buildOrder levels
   const packageNames = new Set(packages.map((p) => p.name));
@@ -174,7 +165,6 @@ export function handlePublish(args: string[]): void {
 
   // Publish in dependency order
   const published: string[] = [];
-  const dryRunFlag = options.dryRun ? '--dry-run' : '';
   const label = options.dryRun ? ' (dry run)' : '';
 
   for (const pkg of ordered) {
@@ -195,10 +185,9 @@ export function handlePublish(args: string[]): void {
 
       // Publish the tarball
       logger.info(`Publishing ${pkg.name}${label}`);
-      execSync(
-        `npm publish ${tarballPath} --access public --no-git-checks --tag ${options.tag} ${dryRunFlag}`.trim(),
-        { stdio: 'inherit' },
-      );
+      execSync(buildPublishCommand(tarballPath, options.tag, options.dryRun), {
+        stdio: 'inherit',
+      });
       published.push(pkg.name);
 
       // Clean up tarball
@@ -212,6 +201,54 @@ export function handlePublish(args: string[]): void {
   }
 
   logger.success(`Published ${published.length} package(s)${label}`);
+}
+
+/**
+ * Builds the `npm publish` invocation for a packed tarball.
+ *
+ * Always publishes with `--access public` (scoped packages default to
+ * private) and an explicit dist-tag. Uses only npm-recognized flags — pnpm
+ * flags like `--no-git-checks` do not belong here.
+ *
+ * @param tarballPath - Absolute path to the packed tarball
+ * @param tag - npm dist-tag (e.g. "latest", "beta")
+ * @param dryRun - When true, appends `--dry-run`
+ * @returns The full command string to execute
+ */
+export function buildPublishCommand(tarballPath: string, tag: string, dryRun: boolean): string {
+  const dryRunFlag = dryRun ? '--dry-run' : '';
+  return `npm publish ${tarballPath} --access public --tag ${tag} ${dryRunFlag}`.trim();
+}
+
+/**
+ * Verifies npm authentication before publishing, exiting the process when
+ * no login is available.
+ *
+ * Skipped for dry runs and under OIDC trusted publishing: `npm whoami` does
+ * not accept OIDC credentials — only `npm publish` does — so the check would
+ * reject a run that is fully able to publish. GitHub Actions sets
+ * ACTIONS_ID_TOKEN_REQUEST_URL only when the job grants `id-token: write`.
+ * If OIDC auth is actually broken, the first `npm publish` fails loudly and
+ * the existing error path exits non-zero.
+ *
+ * @param dryRun - When true, the check is skipped entirely
+ * @param env - Process environment (injectable for tests)
+ */
+export function checkNpmLogin(dryRun: boolean, env: NodeJS.ProcessEnv = process.env): void {
+  if (dryRun) return;
+
+  if (env.ACTIONS_ID_TOKEN_REQUEST_URL) {
+    logger.info('OIDC credentials detected — skipping npm whoami check');
+    return;
+  }
+
+  try {
+    const user = execSync('npm whoami', { stdio: 'pipe' }).toString().trim();
+    logger.info(`Logged in to npm as ${user}`);
+  } catch {
+    logger.error('Not logged in to npm. Run `npm login` first.');
+    process.exit(1);
+  }
 }
 
 function parsePublishOptions(args: string[]): PublishOptions {
