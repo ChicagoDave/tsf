@@ -5,7 +5,7 @@ vi.mock('child_process', () => ({
 }));
 
 import { execSync } from 'child_process';
-import { buildPublishCommand, checkNpmLogin } from '../src/cli/publish';
+import { buildPublishCommand, checkNpmLogin, parsePackFilename } from '../src/cli/publish';
 
 const execSyncMock = vi.mocked(execSync);
 
@@ -19,6 +19,28 @@ describe('buildPublishCommand', () => {
   it('appends --dry-run for dry runs', () => {
     const cmd = buildPublishCommand('/staging/pkg/pkg-1.0.0.tgz', 'beta', true);
     expect(cmd).toBe('npm publish /staging/pkg/pkg-1.0.0.tgz --access public --tag beta --dry-run');
+  });
+});
+
+describe('parsePackFilename', () => {
+  it('reads the npm <= 11 array shape', () => {
+    expect(parsePackFilename([{ filename: 'scope-pkg-1.0.0.tgz' }])).toBe('scope-pkg-1.0.0.tgz');
+  });
+
+  it('reads the npm 12 object-keyed-by-package-name shape', () => {
+    expect(
+      parsePackFilename({ '@scope/pkg': { id: '@scope/pkg@1.0.0', filename: 'scope-pkg-1.0.0.tgz' } }),
+    ).toBe('scope-pkg-1.0.0.tgz');
+  });
+
+  it('reads a bare result object with a filename field', () => {
+    expect(parsePackFilename({ filename: 'scope-pkg-1.0.0.tgz' })).toBe('scope-pkg-1.0.0.tgz');
+  });
+
+  it('throws when no filename is present in any recognized shape', () => {
+    expect(() => parsePackFilename([])).toThrow(/tarball filename/);
+    expect(() => parsePackFilename({ '@scope/pkg': { id: 'x' } })).toThrow(/tarball filename/);
+    expect(() => parsePackFilename(null)).toThrow(/tarball filename/);
   });
 });
 

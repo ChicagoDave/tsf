@@ -179,8 +179,7 @@ export function handlePublish(args: string[]): void {
         stdio: 'pipe',
       }).toString().trim();
 
-      const packResult = JSON.parse(packOutput);
-      const tarballName = Array.isArray(packResult) ? packResult[0].filename : packResult.filename;
+      const tarballName = parsePackFilename(JSON.parse(packOutput));
       const tarballPath = path.join(pkgStagingDir, tarballName);
 
       // Publish the tarball
@@ -194,8 +193,15 @@ export function handlePublish(args: string[]): void {
       if (fs.existsSync(tarballPath)) {
         fs.unlinkSync(tarballPath);
       }
-    } catch {
+    } catch (err) {
       logger.error(`Failed to publish ${pkg.name}`);
+      // Surface the underlying cause — a swallowed error here once masked an
+      // npm pack --json format change as a generic failure.
+      if (err instanceof Error) {
+        const execErr = err as Error & { stderr?: Buffer | string };
+        const stderr = execErr.stderr?.toString().trim();
+        logger.error(stderr || err.message);
+      }
       process.exit(1);
     }
   }
@@ -218,6 +224,29 @@ export function handlePublish(args: string[]): void {
 export function buildPublishCommand(tarballPath: string, tag: string, dryRun: boolean): string {
   const dryRunFlag = dryRun ? '--dry-run' : '';
   return `npm publish ${tarballPath} --access public --tag ${tag} ${dryRunFlag}`.trim();
+}
+
+/**
+ * Extracts the tarball filename from parsed `npm pack --json` output across
+ * npm major versions: npm <= 11 emits an array of result objects; npm 12
+ * emits an object keyed by package name. A bare result object with a
+ * `filename` field is also accepted.
+ *
+ * @param packResult - The JSON.parse'd output of `npm pack --json`
+ * @returns The tarball filename (e.g. "scope-pkg-1.0.0.tgz")
+ * @throws Error when no filename can be located in the structure
+ */
+export function parsePackFilename(packResult: unknown): string {
+  if (Array.isArray(packResult)) {
+    const filename = packResult[0]?.filename;
+    if (typeof filename === 'string') return filename;
+  } else if (packResult && typeof packResult === 'object') {
+    const obj = packResult as Record<string, unknown>;
+    if (typeof obj.filename === 'string') return obj.filename;
+    const first = Object.values(obj)[0] as { filename?: unknown } | undefined;
+    if (first && typeof first.filename === 'string') return first.filename;
+  }
+  throw new Error('could not find tarball filename in npm pack --json output');
 }
 
 /**
