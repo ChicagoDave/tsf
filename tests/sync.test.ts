@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import type { PackageInfo, ResolvedTarget } from '../src/types';
-import { generateFields, syncPackageJson, stripWorkspaceDeps, generatePublishManifest } from '../src/sync/package-json';
+import { generateFields, syncPackageJson, stripWorkspaceDeps, generatePublishManifest, writePublishManifest } from '../src/sync/package-json';
 
 const TMP_DIR = path.resolve(__dirname, '.sync-test-tmp');
 
@@ -258,5 +258,213 @@ describe('generatePublishManifest', () => {
     generatePublishManifest(makePkg());
     const afterCall = fs.readFileSync(path.join(TMP_DIR, 'package.json'), 'utf-8');
     expect(afterCall).toBe(original);
+  });
+});
+
+describe('generatePublishManifest exports preservation', () => {
+  function writeSource(exports: unknown, main = './dist/index.js') {
+    fs.writeFileSync(
+      path.join(TMP_DIR, 'package.json'),
+      JSON.stringify({ name: '@test/lib', version: '1.0.0', main, exports }),
+    );
+  }
+
+  it('carries plain subpath exports through with the outDir stripped', () => {
+    writeSource({
+      '.': { types: './dist/index.d.ts', require: './dist/index.js' },
+      './channels': {
+        types: './dist/channels/index.d.ts',
+        require: './dist/channels/index.js',
+      },
+      './channels/prose': {
+        types: './dist/channels/prose.d.ts',
+        require: './dist/channels/prose.js',
+      },
+    });
+    const exports = generatePublishManifest(makePkg()).exports as Record<string, unknown>;
+
+    expect(exports['./channels']).toEqual({
+      types: './channels/index.d.ts',
+      require: './channels/index.js',
+    });
+    expect(exports['./channels/prose']).toEqual({
+      types: './channels/prose.d.ts',
+      require: './channels/prose.js',
+    });
+  });
+
+  it('keeps the wildcard intact and strips only the outDir prefix', () => {
+    writeSource({
+      '.': { require: './dist/index.js' },
+      './styles/*': './styles/*',
+      './chunks/*': './dist/chunks/*',
+    });
+    const exports = generatePublishManifest(makePkg()).exports as Record<string, unknown>;
+
+    expect(exports['./styles/*']).toBe('./styles/*');
+    expect(exports['./chunks/*']).toBe('./chunks/*');
+  });
+
+  it('passes ./package.json through unchanged', () => {
+    writeSource({ '.': { require: './dist/index.js' }, './package.json': './package.json' });
+    const exports = generatePublishManifest(makePkg()).exports as Record<string, unknown>;
+
+    expect(exports['./package.json']).toBe('./package.json');
+  });
+
+  it('drops conditions pointing at an outDir that is not published', () => {
+    writeSource({
+      '.': { require: './dist/index.js' },
+      './channels': {
+        types: './dist/channels/index.d.ts',
+        import: './dist-esm/channels/index.js',
+        require: './dist/channels/index.js',
+      },
+    });
+    const exports = generatePublishManifest(makePkg()).exports as Record<string, unknown>;
+
+    expect(exports['./channels']).toEqual({
+      types: './channels/index.d.ts',
+      require: './channels/index.js',
+    });
+    expect(exports['./channels']).not.toHaveProperty('import');
+  });
+
+  it('drops a subpath entirely when no condition survives', () => {
+    writeSource({
+      '.': { require: './dist/index.js' },
+      './esm-only': { import: './dist-esm/esm-only.js' },
+    });
+    const exports = generatePublishManifest(makePkg()).exports as Record<string, unknown>;
+
+    expect(exports).not.toHaveProperty('./esm-only');
+    expect(exports['.']).toBeDefined();
+  });
+
+  it('synthesizes "." from the entry point, overriding the source value', () => {
+    writeSource({
+      '.': { types: './dist/other.d.ts', require: './dist/other.js' },
+      './sub': './dist/sub.js',
+    });
+    const exports = generatePublishManifest(makePkg()).exports as Record<string, unknown>;
+
+    expect(exports['.']).toEqual({
+      types: './index.d.ts',
+      require: './index.js',
+      default: './index.js',
+    });
+  });
+
+  it('adds "." when the source exports map omits it', () => {
+    writeSource({ './sub': './dist/sub.js' });
+    const exports = generatePublishManifest(makePkg()).exports as Record<string, unknown>;
+
+    expect(exports['.']).toEqual({
+      types: './index.d.ts',
+      require: './index.js',
+      default: './index.js',
+    });
+    expect(exports['./sub']).toBe('./sub.js');
+  });
+
+  it('falls back to a "."-only map when the source declares no exports', () => {
+    fs.writeFileSync(
+      path.join(TMP_DIR, 'package.json'),
+      JSON.stringify({ name: '@test/lib', version: '1.0.0', main: './dist/index.js' }),
+    );
+    const exports = generatePublishManifest(makePkg()).exports as Record<string, unknown>;
+
+    expect(Object.keys(exports)).toEqual(['.']);
+  });
+
+  it('strips any dist prefix and drops nothing when main gives no outDir', () => {
+    writeSource(
+      { './a': './dist/a.js', './b': './dist-esm/b.js' },
+      'index.js',
+    );
+    const exports = generatePublishManifest(makePkg()).exports as Record<string, unknown>;
+
+    expect(exports['./a']).toBe('./a.js');
+    expect(exports['./b']).toBe('./b.js');
+  });
+});
+
+describe('writePublishManifest (real staging path)', () => {
+  const STAGING_DIR = path.resolve(__dirname, '.sync-test-staging');
+
+  beforeEach(() => {
+    fs.mkdirSync(STAGING_DIR, { recursive: true });
+  });
+
+  afterEach(() => {
+    fs.rmSync(STAGING_DIR, { recursive: true, force: true });
+  });
+
+  it('writes a staged package.json whose exports reach every staged subpath file', () => {
+    fs.writeFileSync(
+      path.join(TMP_DIR, 'package.json'),
+      JSON.stringify({
+        name: '@test/lib',
+        version: '3.1.0',
+        main: './dist/index.js',
+        types: './dist/index.d.ts',
+        type: 'module',
+        scripts: { build: 'tsf build' },
+        devDependencies: { vitest: '^1.0.0' },
+        exports: {
+          './package.json': './package.json',
+          './styles/*': './styles/*',
+          '.': {
+            types: './dist/index.d.ts',
+            import: './dist-esm/index.js',
+            require: './dist/index.js',
+          },
+          './assertion-core': {
+            types: './dist/assertion-core.d.ts',
+            require: './dist/assertion-core.js',
+          },
+        },
+      }),
+    );
+
+    // Stage the files the way an npm build leaves them: flat, outDir stripped.
+    fs.writeFileSync(path.join(STAGING_DIR, 'index.js'), 'module.exports = {};');
+    fs.writeFileSync(path.join(STAGING_DIR, 'index.d.ts'), 'export {};');
+    fs.writeFileSync(path.join(STAGING_DIR, 'assertion-core.js'), 'module.exports = {};');
+    fs.writeFileSync(path.join(STAGING_DIR, 'assertion-core.d.ts'), 'export {};');
+    fs.mkdirSync(path.join(STAGING_DIR, 'styles'), { recursive: true });
+    fs.writeFileSync(path.join(STAGING_DIR, 'styles', 'base.css'), 'body{}');
+
+    writePublishManifest(makePkg(), undefined, STAGING_DIR);
+
+    const staged = JSON.parse(
+      fs.readFileSync(path.join(STAGING_DIR, 'package.json'), 'utf-8'),
+    );
+
+    // The defect in issue #1: this key was absent from the published manifest.
+    expect(staged.exports['./assertion-core']).toEqual({
+      types: './assertion-core.d.ts',
+      require: './assertion-core.js',
+    });
+    expect(staged.exports['./styles/*']).toBe('./styles/*');
+    expect(staged.exports['./package.json']).toBe('./package.json');
+    expect(staged.exports['.'].import).toBeUndefined();
+
+    // Every non-wildcard target the staged manifest names must exist in the tarball.
+    for (const [key, value] of Object.entries(staged.exports)) {
+      const targets = typeof value === 'string' ? [value] : Object.values(value as Record<string, string>);
+      for (const target of targets) {
+        if (target.includes('*')) continue;
+        expect(
+          fs.existsSync(path.join(STAGING_DIR, target)),
+          `exports["${key}"] → ${target} missing from staging dir`,
+        ).toBe(true);
+      }
+    }
+
+    // Publish-manifest hygiene still holds on the file that actually ships.
+    expect(staged.type).toBeUndefined();
+    expect(staged.scripts).toBeUndefined();
+    expect(staged.devDependencies).toBeUndefined();
   });
 });

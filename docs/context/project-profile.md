@@ -1,6 +1,6 @@
 # Project Profile
 
-**Generated**: 2026-07-25
+**Generated**: 2026-09-11
 **Repository**: tsf (@davidcornelson/tsf)
 
 ## Domains
@@ -17,11 +17,12 @@
 - **Framework**: None (CLI/library — no web framework)
 - **Data layer**: None (filesystem-based JSON cache in `src/cache/index.ts`, no DB/ORM)
 - **Messaging**: None
-- **Test framework**: Vitest (`vitest.config.ts`, `fileParallelism: false`, 30s test timeout)
+- **Test framework**: Vitest (`vitest.config.ts`, `fileParallelism: false`, 30s test timeout, 120s hook timeout; excludes `docs/ref/**`, `node_modules/**`, `extensions/**`)
+- **Test command**: `pnpm test`
 - **Build tool**: tsc (project's own `tsf` config also self-hosts via `ts-forge.config.json`); esbuild and rollup used as pluggable compiler/bundler backends
 - **Package manager**: pnpm (`pnpm-workspace.yaml`, `pnpm-lock.yaml`)
 - **CI/CD**: None detected (`.github/workflows/` absent) — though the tool itself generates GitHub Actions workflows for consumers via `src/cli/gh-action.ts`
-- **Monorepo**: No (single-package repo); the tool itself is designed to build *other* monorepos, and `tests/fixture/` contains a synthetic pnpm workspace fixture used for integration tests
+- **Monorepo**: No (single-package repo); the tool itself is designed to build *other* monorepos, and `tests/fixture/` contains a synthetic pnpm workspace fixture used for integration tests. The `extensions/vscode/` directory is a separate, self-contained npm package (own `package.json`/lockfile) excluded from the root Vitest run — not a workspace member.
 
 ## Conventions
 
@@ -41,10 +42,10 @@
 - **Test assertions — insufficient**: Asserting only that the compiler function returned a success object/exit code without reading back the written file; asserting a mock/stub compiler was "called" without checking real file output
 
 ### CLI / Tooling
-- **Mutation calls**: `fs.writeFileSync` on `ts-forge.config.json` (`src/cli/init.ts`), `package.json` (`src/cli/version.ts`, `src/sync/package-json.ts`), and generated workflow YAML (`src/cli/gh-action.ts`)
-- **Reporting without mutation**: CLI command prints a success message ("Initialized config", "Bumped version") without the target file actually changing on disk
-- **Test assertions — verify**: Test invokes the CLI command (or its underlying function) against a temp/fixture directory and re-reads the resulting file to assert on its new content (e.g., `tests/init.test.ts`, `tests/gh-action.test.ts`, `tests/sync.test.ts`)
-- **Test assertions — insufficient**: Asserting only on captured stdout/console output or a returned string, without confirming the file on disk was actually created/modified
+- **Mutation calls**: `fs.writeFileSync` on `ts-forge.config.json` (`src/cli/init.ts`), `package.json` (`src/cli/version.ts`, `src/sync/package-json.ts`), generated workflow YAML (`src/cli/gh-action.ts`), and npm registry publish side effects (`src/cli/publish.ts`, including the OIDC-compatible trusted-publishing gate and `npm pack --json`/`npm publish` invocation)
+- **Reporting without mutation**: CLI command prints a success message ("Initialized config", "Bumped version", "Published") without the target file actually changing on disk or the package actually being published/packed
+- **Test assertions — verify**: Test invokes the CLI command (or its underlying function) against a temp/fixture directory and re-reads the resulting file to assert on its new content (e.g., `tests/init.test.ts`, `tests/gh-action.test.ts`, `tests/sync.test.ts`, `tests/publish.test.ts`)
+- **Test assertions — insufficient**: Asserting only on captured stdout/console output or a returned string, without confirming the file on disk was actually created/modified, or without exercising the real `npm pack`/`npm publish` output-parsing path for publish-related behavior
 
 ### Data Storage (file-based cache)
 - **Mutation calls**: `src/cache/index.ts` — `fs.mkdirSync` + `fs.writeFileSync` to persist cache entries, `fs.rmSync` to clear the cache dir
@@ -57,6 +58,8 @@
 - tsf is a build-tool-for-build-tools: it does not fit neatly into the standard web/service domain template. Its core value proposition (per `CLAUDE.md`) is rewriting `@scope/package` workspace imports to relative paths for npm publish while preserving them for local dev — this is the central mutation to watch across `src/transform/imports.ts` and `src/sync/package-json.ts`.
 - The repo self-hosts: it uses its own `ts-forge.config.json` to build itself (`targets.cli` bundles the CLI entry with esbuild and a `#!/usr/bin/env node` banner).
 - `tests/fixture/` contains a full synthetic pnpm workspace (two packages, `app` and `core`, with prebuilt `dist/` and `.tsf-cache/`) used as a stable integration-test target — treat changes to fixture output shape as a signal to check `tests/integration.test.ts` and `tests/integration-phase4.test.ts`.
+- Since the last profile (2026-07-25), publish tooling matured: recent commits add OIDC trusted-publishing support (skip `npm whoami` gate under OIDC), honor configured publish-import style in npm builds, parse npm 12's `pack --json` output and surface publish errors, and add wildcard subpath-export validation plus a `--publish` package filter (`tests/publish.test.ts`, `tests/validate.test.ts`). Current published version is 1.0.3.
 - No lint/format config (ESLint/Prettier/Biome) was found — style is currently unenforced by tooling.
 - No CI pipeline exists in this repo yet, though the tool generates GitHub Actions workflows for its *consumers* (`src/cli/gh-action.ts`, `tests/gh-action.test.ts`).
-- An `extensions/` directory exists at the repo root (VS Code extension per `docs/architecture/001-vscode-extension.md`) but was not deep-scanned here — worth a follow-up profile note if that becomes an active workstream.
+- An `extensions/vscode/` directory exists at the repo root (VS Code extension per `docs/architecture/001-vscode-extension.md`) with its own `package.json`/lockfile and esbuild config; it is excluded from the root Vitest run (`vitest.config.ts` exclude list) and was not deep-scanned here — worth a follow-up profile note if it becomes an active workstream.
+- `docs/adrs/` does not exist yet in this repo (only `docs/architecture/` with the VS Code extension design doc) — no ADRs have been recorded under rule 11's convention so far.

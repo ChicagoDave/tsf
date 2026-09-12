@@ -56,7 +56,7 @@ import { globSync } from 'glob';
 import * as os from 'os';
 import * as logger from '../utils/logger';
 import { resolvePackageFilters } from '../utils/package-filter';
-import { generatePublishManifest } from '../sync/package-json';
+import { writePublishManifest } from '../sync/package-json';
 
 /**
  * Returns the staging directory for npm publish builds.
@@ -211,12 +211,7 @@ export async function build(options: BuildOptions): Promise<boolean> {
       if (!fs.existsSync(pkgStagingDir)) continue; // wasn't built (cache hit or error)
 
       // Generate clean package.json (with workspace deps resolved to real versions)
-      const manifest = generatePublishManifest(pkg, ctx.packages);
-      fs.writeFileSync(
-        path.join(pkgStagingDir, 'package.json'),
-        JSON.stringify(manifest, null, 2) + '\n',
-        'utf-8',
-      );
+      writePublishManifest(pkg, ctx.packages, pkgStagingDir);
       logger.verbose('Generated publish manifest', pkg.name);
 
       // Copy README, LICENSE if present

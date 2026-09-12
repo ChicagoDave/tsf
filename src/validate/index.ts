@@ -58,68 +58,9 @@ export function validatePackageOutputs(
   if (!fs.existsSync(pkgJsonPath)) return issues;
   const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf-8'));
 
-  // Check "main" field
-  if (pkgJson.main) {
-    const mainPath = path.resolve(pkg.path, pkgJson.main);
-    if (!fs.existsSync(mainPath)) {
-      issues.push({
-        level: 'error',
-        message: `"main" points to "${pkgJson.main}" which does not exist`,
-        file: pkgJsonPath,
-        fix: 'Run "tsf build" to generate output, or update "main" field',
-      });
-    }
-  }
-
-  // Check "types" field
-  if (pkgJson.types || pkgJson.typings) {
-    const typesField = pkgJson.types || pkgJson.typings;
-    const typesPath = path.resolve(pkg.path, typesField);
-    if (!fs.existsSync(typesPath)) {
-      issues.push({
-        level: 'error',
-        message: `"types" points to "${typesField}" which does not exist`,
-        file: pkgJsonPath,
-        fix: 'Run "tsf build" with declarations enabled, or update "types" field',
-      });
-    }
-  }
-
-  // Check "module" field
-  if (pkgJson.module) {
-    const modulePath = path.resolve(pkg.path, pkgJson.module);
-    if (!fs.existsSync(modulePath)) {
-      issues.push({
-        level: 'error',
-        message: `"module" points to "${pkgJson.module}" which does not exist`,
-        file: pkgJsonPath,
-        fix: 'Run "tsf build" to generate ESM output, or update "module" field',
-      });
-    }
-  }
-
-  // Check "exports" field
-  if (pkgJson.exports && typeof pkgJson.exports === 'object') {
-    validateExports(pkg, pkgJson.exports, issues, pkgJsonPath);
-  }
-
-  // Check "bin" field
-  if (pkgJson.bin) {
-    const bins = typeof pkgJson.bin === 'string'
-      ? { [pkgJson.name || 'bin']: pkgJson.bin }
-      : pkgJson.bin;
-    for (const [name, binPath] of Object.entries(bins as Record<string, string>)) {
-      const resolved = path.resolve(pkg.path, binPath);
-      if (!fs.existsSync(resolved)) {
-        issues.push({
-          level: 'error',
-          message: `bin "${name}" points to "${binPath}" which does not exist`,
-          file: pkgJsonPath,
-          fix: 'Run "tsf build" to generate CLI output',
-        });
-      }
-    }
-  }
+  // Entry-point existence checks are shared with the staged-manifest publish gate
+  // so a field checked here is never left unchecked on the manifest that ships.
+  issues.push(...validateManifestTargets(pkgJson, pkg.path, pkgJsonPath));
 
   // Check that .d.ts files exist alongside .js for targets with declarations
   for (const target of targets) {
@@ -143,6 +84,96 @@ export function validatePackageOutputs(
   return issues;
 }
 
+/**
+ * Checks every entry-point field in a manifest against a directory tree.
+ *
+ * The same fields must resolve in two different trees: the source package.json
+ * against the package directory (`tsf validate`), and the generated publish
+ * manifest against its staging directory (`tsf publish`). Both callers share
+ * this implementation, so the source tree and the tarball are held to one
+ * standard rather than drifting apart.
+ *
+ * Wildcard export targets (`./styles/*`) are matched leniently — see
+ * {@link exportTargetExists}.
+ *
+ * @param manifest - Parsed package.json contents (source or staged)
+ * @param rootDir - Directory the manifest's relative paths resolve against
+ * @param manifestPath - Manifest location, reported on each issue for context
+ * @returns One error-level issue per field whose target does not exist
+ */
+export function validateManifestTargets(
+  manifest: Record<string, unknown>,
+  rootDir: string,
+  manifestPath: string,
+): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+
+  // Check "main" field
+  if (manifest.main) {
+    const mainPath = path.resolve(rootDir, manifest.main as string);
+    if (!fs.existsSync(mainPath)) {
+      issues.push({
+        level: 'error',
+        message: `"main" points to "${manifest.main}" which does not exist`,
+        file: manifestPath,
+        fix: 'Run "tsf build" to generate output, or update "main" field',
+      });
+    }
+  }
+
+  // Check "types" field
+  if (manifest.types || manifest.typings) {
+    const typesField = (manifest.types || manifest.typings) as string;
+    const typesPath = path.resolve(rootDir, typesField);
+    if (!fs.existsSync(typesPath)) {
+      issues.push({
+        level: 'error',
+        message: `"types" points to "${typesField}" which does not exist`,
+        file: manifestPath,
+        fix: 'Run "tsf build" with declarations enabled, or update "types" field',
+      });
+    }
+  }
+
+  // Check "module" field
+  if (manifest.module) {
+    const modulePath = path.resolve(rootDir, manifest.module as string);
+    if (!fs.existsSync(modulePath)) {
+      issues.push({
+        level: 'error',
+        message: `"module" points to "${manifest.module}" which does not exist`,
+        file: manifestPath,
+        fix: 'Run "tsf build" to generate ESM output, or update "module" field',
+      });
+    }
+  }
+
+  // Check "exports" field
+  if (manifest.exports && typeof manifest.exports === 'object') {
+    validateExports(rootDir, manifest.exports as Record<string, unknown>, issues, manifestPath);
+  }
+
+  // Check "bin" field
+  if (manifest.bin) {
+    const bins = typeof manifest.bin === 'string'
+      ? { [(manifest.name as string) || 'bin']: manifest.bin }
+      : manifest.bin;
+    for (const [name, binPath] of Object.entries(bins as Record<string, string>)) {
+      const resolved = path.resolve(rootDir, binPath);
+      if (!fs.existsSync(resolved)) {
+        issues.push({
+          level: 'error',
+          message: `bin "${name}" points to "${binPath}" which does not exist`,
+          file: manifestPath,
+          fix: 'Run "tsf build" to generate CLI output',
+        });
+      }
+    }
+  }
+
+  return issues;
+}
+
 // ============================================================================
 // Internal Validation Helpers
 // ============================================================================
@@ -152,14 +183,14 @@ export function validatePackageOutputs(
  * Recursively checks all export conditions resolve to existing files.
  */
 function validateExports(
-  pkg: PackageInfo,
+  rootDir: string,
   exports: Record<string, unknown>,
   issues: ValidationIssue[],
   pkgJsonPath: string,
 ): void {
   for (const [key, value] of Object.entries(exports)) {
     if (typeof value === 'string') {
-      if (!exportTargetExists(pkg.path, value)) {
+      if (!exportTargetExists(rootDir, value)) {
         issues.push({
           level: 'error',
           message: `exports["${key}"] points to "${value}" which does not exist`,
@@ -172,7 +203,7 @@ function validateExports(
       const conditions = value as Record<string, unknown>;
       for (const [cond, condPath] of Object.entries(conditions)) {
         if (typeof condPath !== 'string') continue;
-        if (!exportTargetExists(pkg.path, condPath)) {
+        if (!exportTargetExists(rootDir, condPath)) {
           issues.push({
             level: 'error',
             message: `exports["${key}"].${cond} points to "${condPath}" which does not exist`,

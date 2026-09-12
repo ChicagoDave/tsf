@@ -126,13 +126,7 @@ export function generatePublishManifest(
   // Set entry points relative to staging root
   manifest.main = './' + entryBase;
   manifest.types = './' + dtsBase;
-  manifest.exports = {
-    '.': {
-      types: './' + dtsBase,
-      require: './' + entryBase,
-      default: './' + entryBase,
-    },
-  };
+  manifest.exports = rewritePublishExports(source, entryBase, dtsBase, pkg.name);
 
   // Convert workspace:* deps to real version ranges for publish
   resolveWorkspaceDeps(manifest, workspacePackages);
@@ -167,6 +161,156 @@ export function generatePublishManifest(
   }
 
   return manifest;
+}
+
+// ============================================================================
+// Publish manifest internals
+// ============================================================================
+
+/**
+ * Generates the publish manifest and writes it into a package's staging directory.
+ *
+ * This is the single production path from source package.json to the
+ * `package.json` at the root of the published tarball — the orchestrator's npm
+ * build calls it, and so does anything that needs to observe what actually gets
+ * published rather than what a manifest object looks like in memory.
+ *
+ * @param pkg - Package to stage
+ * @param workspacePackages - All workspace packages, for resolving workspace:* versions
+ * @param stagingDir - The package's staging directory (must already exist)
+ * @returns The manifest that was written
+ * @throws If the staging directory does not exist or is not writable
+ */
+export function writePublishManifest(
+  pkg: PackageInfo,
+  workspacePackages: Map<string, PackageInfo> | undefined,
+  stagingDir: string,
+): Record<string, unknown> {
+  const manifest = generatePublishManifest(pkg, workspacePackages);
+  fs.writeFileSync(
+    path.join(stagingDir, 'package.json'),
+    JSON.stringify(manifest, null, 2) + '\n',
+    'utf-8',
+  );
+  return manifest;
+}
+
+/**
+ * Rewrites one exports target path for the flat staging root.
+ *
+ * Staging is flat: the publish target's outDir becomes the tarball root, so a
+ * source target like `./dist/channels/index.js` is published as
+ * `./channels/index.js`. A `*` is left untouched — npm expands subpath patterns
+ * at resolve time, so only the static prefix is ours to rewrite.
+ *
+ * @param target - Source exports target (may contain one `*`)
+ * @param cjsOutDir - The outDir that is actually staged, derived from source `main`
+ * @returns The staged path, or null when the target lives in an outDir that is
+ *          not staged (e.g. a `dist-esm` ESM build) and therefore has no file
+ *          in the tarball to point at
+ */
+function rewriteExportTarget(target: string, cjsOutDir: string | undefined): string | null {
+  const parts = target.replace(/^\.\//, '').split('/');
+  if (parts.length > 1 && parts[0].startsWith('dist')) {
+    // Only the staged outDir survives the flattening. Anything else — a parallel
+    // ESM build, a docs dir — was never copied, so a rewritten path would name a
+    // file that is not in the tarball. Signal "drop" rather than lie.
+    if (cjsOutDir && parts[0] !== cjsOutDir) return null;
+    parts.shift();
+  }
+  return './' + parts.join('/');
+}
+
+/**
+ * Which outDir does the staging directory actually contain?
+ *
+ * Derived from the source `main` field, which by construction points at the CJS
+ * build that tsf publishes. Returns undefined when `main` is absent or is not
+ * under a `dist*` directory — callers then strip any `dist*` prefix and drop
+ * nothing, since there is no evidence distinguishing staged from unstaged.
+ *
+ * @param source - The source package.json object
+ * @returns The staged outDir segment (e.g. "dist", "dist-npm"), or undefined
+ */
+function stagedOutDir(source: Record<string, unknown>): string | undefined {
+  const main = typeof source.main === 'string' ? source.main : undefined;
+  if (!main) return undefined;
+  const parts = main.replace(/^\.\//, '').split('/');
+  return parts.length > 1 && parts[0].startsWith('dist') ? parts[0] : undefined;
+}
+
+/**
+ * Builds the published `exports` map from the source package's own exports.
+ *
+ * Every source key is carried through with its target paths rewritten for the
+ * flat staging root, so subpath entry points stay reachable after publish. The
+ * `"."` key is synthesized from the package entry point rather than copied —
+ * it is the one key whose staged filename tsf already knows exactly.
+ *
+ * @param source - The source package.json object
+ * @param entryBase - Staged entry filename (e.g. "index.js")
+ * @param dtsBase - Staged declaration filename (e.g. "index.d.ts")
+ * @param pkgName - Package name, for warning context
+ * @returns The exports map to publish
+ */
+function rewritePublishExports(
+  source: Record<string, unknown>,
+  entryBase: string,
+  dtsBase: string,
+  pkgName: string,
+): Record<string, unknown> {
+  const root: ExportsConditions = {
+    types: './' + dtsBase,
+    require: './' + entryBase,
+    default: './' + entryBase,
+  };
+
+  const sourceExports = source.exports;
+  if (!sourceExports || typeof sourceExports !== 'object' || Array.isArray(sourceExports)) {
+    return { '.': root };
+  }
+
+  const cjsOutDir = stagedOutDir(source);
+  const result: Record<string, unknown> = {};
+
+  for (const [key, value] of Object.entries(sourceExports as Record<string, unknown>)) {
+    if (key === '.') {
+      result['.'] = root;
+      continue;
+    }
+
+    if (typeof value === 'string') {
+      const rewritten = rewriteExportTarget(value, cjsOutDir);
+      if (rewritten === null) {
+        logger.warn(`Dropped exports["${key}"] — "${value}" is not in the published output`, pkgName);
+        continue;
+      }
+      result[key] = rewritten;
+      continue;
+    }
+
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      const conditions: Record<string, string> = {};
+      for (const [cond, condPath] of Object.entries(value as Record<string, unknown>)) {
+        if (typeof condPath !== 'string') continue;
+        const rewritten = rewriteExportTarget(condPath, cjsOutDir);
+        if (rewritten === null) continue;
+        conditions[cond] = rewritten;
+      }
+      if (Object.keys(conditions).length === 0) {
+        logger.warn(`Dropped exports["${key}"] — no condition resolves to published output`, pkgName);
+        continue;
+      }
+      result[key] = conditions;
+    }
+  }
+
+  // A source exports map without "." still publishes a root entry: main/types
+  // name it, and omitting it would make the package itself unimportable.
+  if (!result['.']) {
+    return { '.': root, ...result };
+  }
+  return result;
 }
 
 /**

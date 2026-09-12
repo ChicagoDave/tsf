@@ -48,6 +48,27 @@ function cliExitCode(command: string): number {
   }
 }
 
+function cliResult(
+  command: string,
+  extraEnv?: Record<string, string>,
+): { code: number; stdout: string; stderr: string } {
+  try {
+    const stdout = execSync(`node ${CLI} ${command}`, {
+      cwd: FIXTURE_DIR,
+      encoding: 'utf-8',
+      stdio: 'pipe',
+      env: { ...process.env, ...extraEnv },
+    });
+    return { code: 0, stdout, stderr: '' };
+  } catch (e: any) {
+    return {
+      code: e.status ?? 1,
+      stdout: e.stdout?.toString() ?? '',
+      stderr: e.stderr?.toString() ?? '',
+    };
+  }
+}
+
 describe('integration: Phase 4 ecosystem', () => {
   beforeAll(() => {
     // Save original package.json files
@@ -156,6 +177,46 @@ describe('integration: Phase 4 ecosystem', () => {
     it('passes validation', () => {
       const code = cliExitCode('validate');
       expect(code).toBe(0);
+    });
+  });
+  describe('publish gate: staged manifest must reach every file it names', () => {
+    beforeAll(() => {
+      fs.writeFileSync(CORE_PKG_PATH, originalCorePkg);
+      fs.writeFileSync(APP_PKG_PATH, originalAppPkg);
+      cleanFixtureOutput();
+      cli('build --npm', { TSF_PUBLISH_DIR: TEST_STAGING_DIR });
+    }, 120000);
+
+    it('publishes nothing and exits 1 when a staged entry point is absent from the tarball', () => {
+      const coreStagingDir = path.join(TEST_STAGING_DIR, 'test/core');
+      const stagedEntry = path.join(coreStagingDir, 'index.js');
+      const backup = fs.readFileSync(stagedEntry);
+      fs.unlinkSync(stagedEntry);
+
+      try {
+        const result = cliResult('publish --dry-run --filter @test/core', {
+          TSF_PUBLISH_DIR: TEST_STAGING_DIR,
+        });
+
+        expect(result.code).toBe(1);
+        expect(result.stderr).toContain('Staged manifests are not publishable');
+        expect(result.stderr).toContain('"main" points to "./index.js" which does not exist');
+        // The gate fires before npm pack, so no tarball is left in staging.
+        expect(fs.readdirSync(coreStagingDir).filter((f) => f.endsWith('.tgz'))).toEqual([]);
+      } finally {
+        fs.writeFileSync(stagedEntry, backup);
+      }
+    });
+
+    it('clears the gate when every staged target exists', () => {
+      const result = cliResult('publish --dry-run --filter @test/core', {
+        TSF_PUBLISH_DIR: TEST_STAGING_DIR,
+      });
+
+      expect(result.stderr).not.toContain('Staged manifests are not publishable');
+      // Reaching the packing step is the observable proof the gate cleared; it is
+      // logged before `npm pack` runs, so this holds with or without a registry.
+      expect(result.stdout).toContain('Packing @test/core');
     });
   });
 });

@@ -4,6 +4,7 @@ import * as path from 'path';
 import type { PackageInfo, ResolvedTarget } from '../src/types';
 import {
   validatePackageOutputs,
+  validateManifestTargets,
   exportTargetExists,
   filterPublishablePackages,
 } from '../src/validate';
@@ -238,5 +239,30 @@ describe('filterPublishablePackages', () => {
     ]);
     filterPublishablePackages(packages);
     expect(packages.size).toBe(1);
+  });
+});
+
+describe('validateManifestTargets', () => {
+  it('resolves a manifest against the directory it is given, not a package tree', () => {
+    // The publish gate hands it a staging directory; the same manifest must pass
+    // or fail purely on what that directory contains.
+    const stagingDir = path.join(TMP_DIR, 'staging');
+    fs.mkdirSync(stagingDir, { recursive: true });
+    fs.writeFileSync(path.join(stagingDir, 'index.js'), '');
+    const manifest = {
+      name: '@test/lib',
+      main: './index.js',
+      exports: { './sub': './sub.js' },
+    };
+
+    const issues = validateManifestTargets(
+      manifest,
+      stagingDir,
+      path.join(stagingDir, 'package.json'),
+    );
+
+    expect(issues).toHaveLength(1);
+    expect(issues[0].message).toContain('exports["./sub"]');
+    expect(issues[0].file).toBe(path.join(stagingDir, 'package.json'));
   });
 });

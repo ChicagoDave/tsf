@@ -11,6 +11,7 @@
  * 2. Run `tsf publish` to pack and publish
  *
  * Features:
+ * - Staged-manifest gate (entry points must exist in the tarball)
  * - Tarball packing via `npm pack`
  * - Tag support (latest, beta, etc.)
  * - Filter to specific packages
@@ -31,6 +32,7 @@ import * as path from 'path';
 import { loadBuildContextPublic, shouldSkipTarget, getPublishStagingDir } from '../orchestrator';
 import * as logger from '../utils/logger';
 import { parsePackageFlag, resolvePackageFilters } from '../utils/package-filter';
+import { validateManifestTargets } from '../validate';
 
 /**
  * Options for the publish command.
@@ -140,26 +142,15 @@ export function handlePublish(args: string[]): void {
     }
   }
 
-  // Validate staging manifests — catch workspace: protocol leaks before publishing
-  const invalid: string[] = [];
-  for (const pkg of ordered) {
-    const manifestPath = path.join(stagingDir, pkg.name.replace(/^@/, ''), 'package.json');
-    if (!fs.existsSync(manifestPath)) continue;
-    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
-    for (const field of ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies']) {
-      const deps = manifest[field] as Record<string, string> | undefined;
-      if (!deps) continue;
-      for (const [name, version] of Object.entries(deps)) {
-        if (typeof version === 'string' && version.startsWith('workspace:')) {
-          invalid.push(`${pkg.name} → ${field}.${name}: ${version}`);
-        }
-      }
+  // Validate staging manifests before anything is packed or published
+  const problems = validateStagedManifests(ordered.map((p) => p.name), stagingDir);
+  if (problems.length > 0) {
+    logger.error('Staged manifests are not publishable:');
+    for (const problem of problems) {
+      logger.error(`  ${problem.pkg} → ${problem.message}`);
+      logger.error(`    Fix: ${problem.fix}`);
     }
-  }
-  if (invalid.length > 0) {
-    logger.error('Staged manifests contain unresolved workspace: protocols:');
-    for (const msg of invalid) logger.error(`  ${msg}`);
-    logger.error('This is a bug in the build — workspace deps should be resolved to version ranges.');
+    logger.error('This is a bug in the build — nothing was published.');
     process.exit(1);
   }
 
@@ -207,6 +198,78 @@ export function handlePublish(args: string[]): void {
   }
 
   logger.success(`Published ${published.length} package(s)${label}`);
+}
+
+/**
+ * A reason one staged manifest cannot be published as-is.
+ */
+export interface StagedManifestProblem {
+  /** Package the problem was found in */
+  pkg: string;
+  /** What is wrong with the staged manifest */
+  message: string;
+  /** How to resolve it */
+  fix: string;
+}
+
+/**
+ * Validates the manifests in the staging directory — the ones that actually get
+ * published — before any package is packed.
+ *
+ * Two classes of defect ship silently otherwise:
+ * 1. `workspace:` protocol ranges left in dependencies, which npm rejects with
+ *    EUNSUPPORTEDPROTOCOL at install time.
+ * 2. `main`/`types`/`module`/`exports`/`bin` targets that name a path absent
+ *    from the staging directory, and therefore from the tarball. `tsf validate`
+ *    cannot catch these: it checks the SOURCE manifest against the SOURCE tree,
+ *    where the referenced `dist/` files genuinely exist.
+ *
+ * Packages with no staged manifest are skipped — the caller has already warned
+ * about missing staging output and filtered them out of the publish set.
+ *
+ * @param packageNames - Package names to check, in publish order
+ * @param stagingDir - Root staging directory (`~/.tsf-publish` by default)
+ * @returns One problem per defect found; empty means every manifest is publishable
+ */
+export function validateStagedManifests(
+  packageNames: string[],
+  stagingDir: string,
+): StagedManifestProblem[] {
+  const problems: StagedManifestProblem[] = [];
+
+  for (const name of packageNames) {
+    const pkgStagingDir = path.join(stagingDir, name.replace(/^@/, ''));
+    const manifestPath = path.join(pkgStagingDir, 'package.json');
+    if (!fs.existsSync(manifestPath)) continue;
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+
+    for (const field of ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies']) {
+      const deps = manifest[field] as Record<string, string> | undefined;
+      if (!deps) continue;
+      for (const [dep, version] of Object.entries(deps)) {
+        if (typeof version === 'string' && version.startsWith('workspace:')) {
+          problems.push({
+            pkg: name,
+            message: `${field}.${dep}: ${version}`,
+            fix: 'Workspace deps must be resolved to version ranges by the npm build',
+          });
+        }
+      }
+    }
+
+    // Entry points are checked against the staging directory, not the package
+    // tree, so a target the tarball does not contain fails here.
+    for (const issue of validateManifestTargets(manifest, pkgStagingDir, manifestPath)) {
+      if (issue.level !== 'error') continue;
+      problems.push({
+        pkg: name,
+        message: `${issue.message} in the staging directory`,
+        fix: `Re-run "tsf build --npm" — the staged manifest names a path that is not in ${pkgStagingDir}`,
+      });
+    }
+  }
+
+  return problems;
 }
 
 /**
