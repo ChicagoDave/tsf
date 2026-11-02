@@ -12,34 +12,12 @@ No existing tool rewrites `@scope/package` workspace imports to relative paths f
 
 See `docs/work/architecture.md` for the full design document.
 
-## Project Structure
-
-```
-src/
-├── cli/              # CLI entry point, argument parsing
-├── config/           # Config loading and validation
-├── resolver/         # Workspace topology resolver (pnpm/npm/yarn)
-├── orchestrator/     # Dependency ordering, parallel scheduling
-├── compilers/        # Compiler adapters (tsc, esbuild, swc)
-├── transform/        # Import and declaration rewriting
-└── cache/            # Incremental build cache
-tests/
-docs/
-├── work/             # Plans and implementation tracking
-├── context/          # Session summaries
-└── architecture/     # ADRs and design docs
-```
-
-## Development
-
-```bash
-pnpm install
-pnpm build
-pnpm test
-```
-
 ## Work Patterns
 
 - Planning docs: `docs/work/`
 - Session summaries: `docs/context/session-YYYYMMDD-HHMM-{branch}.md`
 - Architecture decisions: `docs/architecture/`
+
+<!-- devarch:start -->
+@~/.devarch/DEVARCH.md
+<!-- devarch:end -->
