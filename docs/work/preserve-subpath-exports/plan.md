@@ -56,4 +56,5 @@
 - **Entry state**: Phase 3 committed, working tree clean.
 - **Deliverable**: David runs `npm publish` for the staged 1.0.4 build, then bumps Sharpee's `tsf` devDependency to `^1.0.4` and reinstalls, mirroring the same manual hand-off recorded for the 1.0.1 release.
 - **Exit state**: 1.0.4 live on npm; downstream Sharpee packages can pick up the fix.
-- **Status**: PENDING (manual — not started by the agent)
+- **Demonstrated**: 2026-11-02 — `npm view @davidcornelson/tsf time` shows 1.0.4 published 2026-09-12T03:00:46Z (latest); Sharpee `package.json` pins `"@davidcornelson/tsf": "^1.0.4"` (sharpee commit `f6c27d1ba`, 2026-09-11) and `node_modules/@davidcornelson/tsf/package.json` reads 1.0.4. Done by David out of band; nothing published this session. [reported by session, unverified]
+- **Status**: DONE
