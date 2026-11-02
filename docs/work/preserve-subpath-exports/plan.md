@@ -46,7 +46,8 @@
 - **Entry state**: Phases 1–2 complete, `pnpm build` and `pnpm test` green, no version bump yet.
 - **Deliverable**: `package.json` version bumped 1.0.3 → 1.0.4. A single commit containing the fix, the validation gate, and the version bump — following this repo's existing convention of landing the version number in the same commit as the fix it releases (e.g. `f3eed7a`, `1fbba11`). Commit message references issue #1.
 - **Exit state**: Working tree at 1.0.4, `pnpm build`/`pnpm test` green, commit created (not pushed unless the user asks). Ready for manual publish.
-- **Status**: CURRENT (since 2026-09-11)
+- **Demonstrated**: 2026-11-02 — `package.json` reads 1.0.4 at HEAD `2605b97` ("fix(publish): preserve subpath exports in publish manifest; gate publish on staged manifest; 1.0.4", 14 files, references issue #1); `pnpm build` exits 0; `pnpm exec vitest run` passes 12 files / 152 tests. Not pushed. [verified: build event "Build passed" 2026-11-02T06:45:31Z; test event "Tests passed, 12 files / 152 tests" 2026-11-02T06:45:40Z; no source edits after]
+- **Status**: DONE
 
 ### Phase 4: Publish 1.0.4 to npm (manual, owned by David)
 - **Tier**: N/A — manual step, not executed by the agent
