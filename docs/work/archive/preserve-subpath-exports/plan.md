@@ -1,7 +1,7 @@
 # Session Plan: Preserve subpath exports in the publish manifest, and gate publish on it
 
 **Created**: 2026-09-11
-**Plan Status**: ACTIVE
+**Plan Status**: DONE
 **Overall scope**: Fix GitHub issue #1 — `generatePublishManifest` (`src/sync/package-json.ts`) unconditionally overwrites `manifest.exports` with a `"."`-only map, silently discarding every subpath export the source `package.json` declares (plain subpaths, wildcards, `./package.json` passthrough, non-CJS-condition targets). The files themselves are staged and published correctly; only the exports map that would let consumers reach them is lost. Add the same class of defect-prevention the issue asks for: a check in the publish path that fails `tsf publish` when a staged manifest's exports/main/types/bin targets don't actually exist in the staging directory, since today `tsf validate` checks the *source* manifest against the *source* tree and passes while the *staged* manifest (the one actually published) is already broken.
 **Bounded contexts touched**: N/A — infrastructure/tooling (build-tool internals: publish manifest generation and the publish CLI gate). No domain model is recorded for this repository and this work introduces none.
 **Key domain language**: N/A — plain technical framing (publish manifest, staging directory, exports map, staged validation gate).
