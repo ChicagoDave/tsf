@@ -1,8 +1,9 @@
-# ADR-001: VS Code Extension for ts-forge
+# ADR-0001: VS Code Extension for ts-forge
 
-**Status:** Accepted
-**Date:** 2026-02-01
-**Context:** IDE support design (see architecture.md, BUILD vs EDITOR mode)
+**Status**: ACCEPTED
+**Date**: 2026-02-01
+**Kind**: technical
+**Context**: IDE support design (see architecture.md, BUILD vs EDITOR mode)
 
 ## Context
 
@@ -163,3 +164,7 @@ A standalone LSP implementation would work in any editor. However:
 - The features we need (diagnostics, CodeLens, tasks) are simpler to implement via VS Code's extension API.
 
 **Verdict:** Overkill. If multi-editor support becomes critical, a tsserver plugin (alternative 1) covers the most important feature (diagnostics) with less effort than a full LSP.
+
+## Session
+
+Written in session 20260201-2351 on main (`docs/context/archive/session-20260201-2351-main.md`); relocated from `docs/architecture/001-vscode-extension.md` and brought to the rule 11 header format in session 9ca055 (2026-11-02, issue 6).

@@ -62,5 +62,5 @@
 - `package.json`'s `test` script is bare `vitest` (watch mode on a TTY), so the profile's test command uses `vitest run` to terminate in non-interactive gates.
 - No lint/format config (ESLint/Prettier/Biome) was found — style is currently unenforced by tooling.
 - No CI pipeline exists in this repo yet, though the tool generates GitHub Actions workflows for its *consumers* (`src/cli/gh-action.ts`, `tests/gh-action.test.ts`).
-- An `extensions/vscode/` directory exists at the repo root (VS Code extension per `docs/architecture/001-vscode-extension.md`) with its own `package.json`/lockfile and esbuild config; it is excluded from the root Vitest run (`vitest.config.ts` exclude list) and was not deep-scanned here — worth a follow-up profile note if it becomes an active workstream.
-- `docs/adrs/` still does not exist (only `docs/architecture/` with the VS Code extension design doc; planning docs live in `docs/work/`) — no ADRs have been recorded under rule 11's convention so far.
+- An `extensions/vscode/` directory exists at the repo root (VS Code extension per `docs/adrs/0001-vscode-extension.md`) with its own `package.json`/lockfile and esbuild config; it is excluded from the root Vitest run (`vitest.config.ts` exclude list) and was not deep-scanned here — worth a follow-up profile note if it becomes an active workstream.
+- `docs/adrs/` holds ADR-0001 (VS Code extension), relocated from `docs/architecture/` on 2026-11-02; planning docs live in `docs/work/`.

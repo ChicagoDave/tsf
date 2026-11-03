@@ -16,7 +16,7 @@ See `docs/work/architecture.md` for the full design document.
 
 - Planning docs: `docs/work/`
 - Session summaries: `docs/context/session-YYYYMMDD-HHMM-{branch}.md`
-- Architecture decisions: `docs/architecture/`
+- Architecture decisions: `docs/adrs/` (ADR-NNNN-title.md, DEVARCH rule 11)
 
 <!-- devarch:start -->
 @~/.devarch/DEVARCH.md
