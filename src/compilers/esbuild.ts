@@ -25,6 +25,7 @@ import * as path from 'path';
 import * as ts from 'typescript';
 import type { PackageInfo, ResolvedTarget, CompileResult } from '../types';
 import * as logger from '../utils/logger';
+import { resolveRootDir } from '../utils/tsconfig';
 import { loadEsbuild } from '../utils/esbuild-loader';
 
 /**
@@ -172,6 +173,9 @@ function emitDeclarationsOnly(
 ): CompileResult {
   const options: ts.CompilerOptions = {
     ...parsedConfig.options,
+    // Same pin as the tsc adapter: 6.0's default rootDir (the tsconfig directory)
+    // would place .d.ts files under outDir/src while esbuild emits from outbase.
+    ...(parsedConfig.options.rootDir === undefined && { rootDir: resolveRootDir(pkg.tsconfig) }),
     outDir,
     declaration: true,
     declarationMap: target.config.declarationMap ?? false,

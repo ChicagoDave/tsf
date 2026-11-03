@@ -27,6 +27,7 @@ import * as ts from 'typescript';
 import { globSync } from 'glob';
 import type { PackageInfo, ResolvedTarget } from '../types';
 import * as logger from '../utils/logger';
+import { resolveRootDir } from '../utils/tsconfig';
 
 // ============================================================================
 // Declaration Import Pattern Regular Expressions
@@ -191,18 +192,8 @@ function rewriteSpecifier(
  * @returns Output .d.ts path relative to outDir
  */
 function getOutputEntryPoint(pkg: PackageInfo): string {
-  let rootDir = 'src';
-  try {
-    const configFile = ts.readConfigFile(pkg.tsconfig, ts.sys.readFile);
-    if (configFile.config?.compilerOptions?.rootDir) {
-      rootDir = configFile.config.compilerOptions.rootDir;
-    }
-  } catch {
-    // Fall back to default
-  }
-
-  // Normalize: strip leading ./ so "./src" matches "src/index.ts"
-  rootDir = rootDir.replace(/^\.\//, '');
+  // Package-relative effective rootDir ('' when it is the package root itself).
+  const rootDir = path.relative(pkg.path, resolveRootDir(pkg.tsconfig)).split(path.sep).join('/');
 
   let entry = pkg.entryPoint;
   const rootDirPrefix = rootDir.replace(/\/$/, '') + '/';

@@ -29,6 +29,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import type { PackageInfo, ResolvedTarget, CompileResult } from '../types';
 import * as logger from '../utils/logger';
+import { resolveRootDir } from '../utils/tsconfig';
 
 /**
  * Compiles a package using the TypeScript compiler.
@@ -68,9 +69,28 @@ export function compile(
 
   const moduleKind = resolveModuleKind(target.config.module);
 
+  // TypeScript 6.0 defaults `module` to esnext where 5.x defaulted to commonjs.
+  // TSF does not pin it (the target is the place to say so), but a build whose
+  // format is decided by the compiler version deserves a warning.
+  if (moduleKind === undefined && parsedConfig.options.module === undefined) {
+    logger.warn(
+      `Neither the target nor tsconfig sets "module"; output format follows TypeScript ${ts.version}'s default. Set "module" on the target.`,
+      context,
+    );
+  }
+
+  // Pin rootDir to what TSF's output layout assumes (the common source directory,
+  // TypeScript 5.x's inference) when the user leaves it to the compiler default,
+  // which 6.0 changed to the tsconfig directory.
+  const tsconfigDir = path.dirname(pkg.tsconfig);
+  const pinnedRootDir = parsedConfig.options.rootDir
+    ? path.resolve(tsconfigDir, parsedConfig.options.rootDir)
+    : resolveRootDir(pkg.tsconfig);
+
   const overrides: ts.CompilerOptions = {
     outDir,
     ...(moduleKind !== undefined && { module: moduleKind }),
+    ...(parsedConfig.options.rootDir === undefined && { rootDir: pinnedRootDir }),
     declaration: target.config.declarations ?? parsedConfig.options.declaration ?? false,
     declarationMap: target.config.declarationMap ?? parsedConfig.options.declarationMap ?? false,
     sourceMap: target.config.sourceMap ?? parsedConfig.options.sourceMap ?? false,
@@ -105,7 +125,6 @@ export function compile(
   // An absolute substitution is used as-is, whatever the base. The user's own
   // `baseUrl`/`paths`, if any, are left exactly as written.
   const isRelativeBuild = target.config.imports === 'relative';
-  const tsconfigDir = path.dirname(pkg.tsconfig);
   const currentPaths: ts.MapLike<string[]> = { ...(parsedConfig.options.paths || {}) };
 
   // For npm/relative builds with a staging dir, point at the staging directory where
@@ -159,9 +178,7 @@ export function compile(
   // This handles user-provided paths in tsconfig (for both local and npm builds).
   // Even for npm builds, if tsconfig has paths that resolve outside rootDir, tsc fails.
   if (Object.keys(currentPaths).length > 0) {
-    const effectiveRootDir = parsedConfig.options.rootDir
-      ? path.resolve(tsconfigDir, parsedConfig.options.rootDir)
-      : tsconfigDir;
+    const effectiveRootDir = pinnedRootDir;
     // Relative entries (only the user's own can be relative) resolve against the
     // user's baseUrl if declared, else the tsconfig directory; absolute entries
     // resolve to themselves. This mirrors TypeScript's own resolution.
@@ -263,6 +280,7 @@ function resolveModuleKind(module?: string): ts.ModuleKind | undefined {
     es2022: ts.ModuleKind.ES2022,
     node16: ts.ModuleKind.Node16,
     nodenext: ts.ModuleKind.NodeNext,
+    preserve: ts.ModuleKind.Preserve,
   };
   return map[module.toLowerCase()];
 }
@@ -443,18 +461,8 @@ function collectFilesRecursive(dir: string, files: string[], extensions: string[
  * tsc strips rootDir, so src/index.ts with rootDir=src becomes index.js.
  */
 function getOutputEntryPoint(pkg: PackageInfo): string {
-  let rootDir = 'src';
-  try {
-    const configFile = ts.readConfigFile(pkg.tsconfig, ts.sys.readFile);
-    if (configFile.config?.compilerOptions?.rootDir) {
-      rootDir = configFile.config.compilerOptions.rootDir;
-    }
-  } catch {
-    // Fall back to default
-  }
-
-  // Normalize: strip leading ./ so "./src" matches "src/index.ts"
-  rootDir = rootDir.replace(/^\.\//, '');
+  // Package-relative effective rootDir ('' when it is the package root itself).
+  const rootDir = path.relative(pkg.path, resolveRootDir(pkg.tsconfig)).split(path.sep).join('/');
 
   let entry = pkg.entryPoint;
   const rootDirPrefix = rootDir.replace(/\/$/, '') + '/';
