@@ -31,6 +31,8 @@
  * ```
  */
 
+import * as fs from 'fs';
+import * as path from 'path';
 import type { BuildOptions } from '../types';
 import { build, buildWatch, check, info, loadBuildContextPublic, shouldSkipTarget } from '../orchestrator';
 import { init } from './init';
@@ -45,8 +47,14 @@ import { handlePublish } from './publish';
 import { handleList } from './list';
 import { handleChanged } from './changed';
 
-/** TSF version number */
-const VERSION = '0.1.0';
+/**
+ * TSF version, read from the package's own package.json (two levels above
+ * dist/cli/ in both the repo and the published package) so `tsf --version`
+ * always matches what was installed.
+ */
+const VERSION: string = JSON.parse(
+  fs.readFileSync(path.join(__dirname, '..', '..', 'package.json'), 'utf-8'),
+).version;
 
 function main(): void {
   const args = process.argv.slice(2);
