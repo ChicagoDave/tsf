@@ -65,11 +65,11 @@
 - **Domain focus**: Downstream consumer validation and dependency range
 - **Entry state**: Phases 2-3 done; Sharpee at `../sharpee` consumes tsf `^1.0.4` and currently pins `"typescript": "^5.2.2"`.
 - **Deliverable**: Pack the local build with `pnpm pack`, install it into a scratch copy of Sharpee (not its working tree), override its TypeScript to 6.0.3, and run Sharpee's tsf build; record results and any Sharpee-side tsconfig changes it needs in `docs/work/typescript-6-compat/findings.md`. Set TSF's `package.json` TypeScript range: `devDependency` on `~6.0.3`, and a `peerDependencies` range that states what is actually tested (`>=5.7 <7`), with a README note that TS 7 is unsupported. If Sharpee is unavailable, say so and substitute `tests/fixture/` plus a second synthetic workspace, marking the check [reported].
-- **Files**: `package.json`, `README.md`, `docs/work/typescript-6-compat/findings.md`
+- **Files**: `package.json` (peerDependencies + peerDependenciesMeta; `pnpm-lock.yaml` unchanged), `README.md` ("TypeScript versions" under Install), `docs/work/typescript-6-compat/findings.md` (section 5, D10)
 - **Exit state**: A Sharpee build under TSF-with-TS-6.0.3 succeeds, or its failures are recorded with owner; supported range is declared and matches what was tested.
 - **Demonstration**: Run the scratch Sharpee tsf build with TS 6.0.3 and see it exit 0 with emitted dist and declaration files; run `pnpm exec vitest run` and see all green.
-- **Demonstrated**: 
-- **Status**: PENDING
+- **Demonstrated**: [reported by session, unverified — the scratch builds ran outside the hook log; run1–run5 logs under the session scratchpad phase4/] 2026-11-03 — Sharpee scratch copy (git archive of ../sharpee HEAD 2fd7336b5, Sharpee's checkout untouched) on TypeScript 6.0.3 with the packed TSF tarball from 8c3836b: as-is, `tsf build` exits 1 on 35 Sharpee-side deprecations plus `types: []` fallout (findings §5 run 1); with three Sharpee-side config changes and one source line (findings §5), `tsf build` exits 0 with 0 deprecation diagnostics across 34 packages, and `tsf build --npm` exits 0 producing 34 staged packages with generated manifests (`main`, `types`, `exports`, `@sharpee/*` deps) — runs 4 and 5. In the tsf repo [verified]: `npx tsc --noEmit` clean, `pnpm exec vitest run` 13 files / 171 tests green, `pnpm-lock.yaml` unchanged after `pnpm install`, and the packed tarball's package.json carries `peerDependencies.typescript: ">=5.7 <7"`.
+- **Status**: DONE
 
 ### Phase 5: Version bump and local commit
 - **Tier**: Small

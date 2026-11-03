@@ -37,6 +37,14 @@
     "glob": "^13.0.0",
     "typescript": "~6.0.3"
   },
+  "peerDependencies": {
+    "typescript": ">=5.7 <7"
+  },
+  "peerDependenciesMeta": {
+    "typescript": {
+      "optional": true
+    }
+  },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "esbuild": "^0.27.2",

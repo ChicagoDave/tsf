@@ -32,6 +32,7 @@ Provenance: every row marked [verified] was reproduced by running 6.0.3 in this 
 | D7 | `moduleResolution: classic`, `module: amd/umd/systemjs/none`, `outFile` removed [reported] | `resolveModuleKind()` never mapped these; `TargetConfig.outFile` exists for bundlers only, not passed to tsc. | None. | — |
 | D8 | Compiler API "continues to be API compatible with 5.9" [reported] | `createProgram`, `emit`, `getPreEmitDiagnostics`, `readConfigFile`, `parseJsonConfigFileContent`, `transpileModule`, `ts.sys` all still present; TSF's build and 130 non-integration tests pass unchanged. [verified: no API-level failure anywhere] | None for 6.0. TS 7 removes all of these; out of scope. | — |
 | D9 | `module` override over `nodenext` resolution [verified by reasoning from TS5110; not a 6.0 change] | A target that overrides `module: commonjs` while the user tsconfig has `moduleResolution: nodenext` yields TS5110 (`module` must be NodeNext when resolution is NodeNext) on both 5.x and 6.0. TSF's recommended 6.0-clean user config for CJS output is therefore `bundler` resolution (6.0 accepts bundler + commonjs; on 5.x TSF downgrades to node10), or `nodenext` for both fields with no target `module` override. This is why `tests/fixture/` uses `bundler` and the compat suite's no-override cases use `nodenext`. | Phase 3/4: document in the README's TypeScript 6 note. | 4 |
+| D10 | Bare `require()` inside a `.ts` file: `Cannot find name 'require'` (TS2591) on 6.0.3 with `@types/node` 20.19.27 and `"types": ["node"]`, under node10 and bundler resolution alike [verified in the Sharpee scratch copy, run 1 and run 2]; the same file compiled on 5.9.3 | Not a TSF matter; `process`/`console` resolve once `types` is set, `require` does not. Root cause not confirmed (ambient `require` declaration visibility changed between 5.9 and 6.0 for `.ts` files). | Owner Sharpee: use a static import (one line, see section 5). Mention in the README note only if it recurs. | — |
 
 ## 3. Test run record
 
@@ -54,3 +55,24 @@ Provenance: every row marked [verified] was reproduced by running 6.0.3 in this 
 ## 4. ignoreDeprecations decision
 
 `"ignoreDeprecations": "6.0"` was in `tsconfig.json` (Phase 1-2) and the fixture tsconfigs (Phase 1) so the suite could run; **removed in Phase 2 (fixture) and Phase 3 (TSF), none remain**. It is never to be injected into user builds: a user who wants it sets it in their own tsconfig, and TSF already passes it through via `parsedConfig.options`.
+
+## 5. Phase 4 — Sharpee real-path check (2026-11-03)
+
+Setup: TSF built at HEAD 8c3836b and packed (`pnpm pack`, 1.0.4 tarball); Sharpee scratch copy from `git archive HEAD` of `../sharpee` (2fd7336b5), with `pnpm.overrides` pinning `typescript` to 6.0.3 and `@davidcornelson/tsf` to the tarball; `pnpm install --no-frozen-lockfile` (pnpm 10.13.1 per Sharpee's `packageManager`). Installed tsf verified to be the tarball (`ADR-0002` markers in `dist/compilers/tsc.js`). Sharpee's real checkout was not modified.
+
+| Run | State of the scratch copy | `tsf build` | Result |
+|---|---|---|---|
+| 1 | Sharpee as-is (base tsconfig `module: commonjs`, `moduleResolution: node`, no `types`; dungeo declares `baseUrl`) | exit 1 | 35 deprecation errors: 34× `moduleResolution=node10` (one per package) + 1× `baseUrl` (stories/dungeo); plus hundreds of `Cannot find name 'console'/'process'/'setTimeout'/'node:fs'` — the 6.0 `types: []` default (D2). All Sharpee-side. |
+| 2 | base: `moduleResolution: bundler`, `types: ["node"]`; dungeo: same + `baseUrl` removed (its `paths` were already `./`-prefixed) | exit 1 | **0 deprecation diagnostics.** One error left: `packages/stdlib/.../looking-data.ts(262)` bare `require('@sharpee/world-model')` → TS2591 (D10). 33 of 34 packages built. |
+| 3 | as run 2, `tsf build --npm` to a scratch `TSF_PUBLISH_DIR` | exit 1 | 0 deprecation diagnostics; same single stdlib error; because the build had an error, manifest sync and the post-compile transform did not run. |
+| 4 | as run 2 + `looking-data.ts`: `OpenableBehavior` added to the existing static import from `@sharpee/world-model`, `require` line removed | **exit 0** | `✓ Build complete`, 0 deprecation diagnostics, 34 packages. |
+| 5 | as run 4, `tsf build --npm` to a fresh scratch staging dir | **exit 0** | `✓ npm build complete`; 34 staged packages, each with a generated `package.json` (`main: ./index.js`, `types: ./index.d.ts`, exports, `@sharpee/*` deps at `^5.5.1`), `.js`/`.d.ts`/maps present. Bare `@sharpee/*` specifiers remain in staged `.js` (304 files) and `.d.ts` (499) **by configuration**: Sharpee's `npm` target is `imports: "preserve"`, so cross-package imports stay as package names and resolve through the staged dependencies. Intra-package imports are relative (`require("../assemble.js")`). |
+
+Sharpee-side changes needed for TypeScript 6.0 (owner: Sharpee, none applied to the real checkout):
+1. `tsconfig.base.json`: `"moduleResolution": "bundler"` (was `node`); `"types": ["node"]`. Keep `module: commonjs`; 6.0 accepts bundler + commonjs, and tsf's `local`/`npm` targets override `module: commonjs` anyway (on 5.x tsf falls back to node10 for that pair).
+2. `stories/dungeo/tsconfig.json`: same two changes, remove `"baseUrl": "."` (its `paths` already start with `./`).
+3. `packages/stdlib/src/actions/standard/looking/looking-data.ts:262`: replace the bare `require('@sharpee/world-model')` with the static import (D10).
+4. `package.json`: `typescript` is `^5.2.2`; bump to `~6.0.3` when adopting (Phase 6, David).
+Not inspected: packages outside `ts-forge.config.json`'s `projects` list (bridge, map-editor, runtime, concealment-test, channel-service-test, family-zoo-tutorial also match `baseUrl`/`node`), tests and vitest configs, the `esm` target (`condition: esm`, not built here).
+
+Supported range declared in this phase: `dependencies.typescript` `~6.0.3` (runtime, B2); `peerDependencies.typescript` `>=5.7 <7` (optional) as the workspace range tsf is tested alongside; README "TypeScript versions" note under Install. Tested legs: 5.9.3 and 6.0.3. 5.7 and 5.8 are inside the declared range by plan decision but were not run.

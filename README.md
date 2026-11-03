@@ -68,6 +68,15 @@ pnpm add -D @davidcornelson/tsf
 npm install -D @davidcornelson/tsf
 ```
 
+### TypeScript versions
+
+tsf depends on TypeScript directly (currently `~6.0.3`) and compiles with that copy, so your workspace does not have to provide one. Its code is also tested running on TypeScript 5.9, for installs that dedupe to a workspace copy. The declared peer range `>=5.7 <7` records the workspace TypeScript versions tsf is tested alongside; a TypeScript 7 workspace is flagged as unsupported. TypeScript 7 removes the JavaScript compiler API tsf is built on, and tsf does not run on it.
+
+Moving a workspace to TypeScript 6.0 means two things for tsf users:
+
+- **Your own tsconfigs must be 6.0-clean.** 6.0 turns `baseUrl` and `moduleResolution: node` (node10) into errors, defaults `types` to `[]` (so `@types/node` globals such as `process` and `console` are no longer ambient unless you set `"types": ["node"]`), and tsf surfaces all of that exactly as tsc would — it never hides a diagnostic. For CommonJS output with per-target `module` overrides, use `"moduleResolution": "bundler"` and drop `baseUrl` (prefix `paths` entries with `./`). On 5.x tsf keeps that pair working by falling back to node10; on 6.0 it is accepted as is.
+- **tsf itself injects nothing deprecated.** Workspace `paths` it adds are absolute and it never sets `baseUrl`. If your tsconfig omits `rootDir`, tsf pins it to the common source directory (what 5.x inferred), so output layout does not change when the compiler default does. If neither your tsconfig nor the target sets `module`, tsf warns, because the emitted format then follows the compiler's default.
+
 ## Quick Start
 
 ```bash
