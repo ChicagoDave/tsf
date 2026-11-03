@@ -8,11 +8,10 @@
  * src/compilers/tsc.ts against it with no stubs, and asserts on the files tsc
  * actually emitted and on the diagnostics it returned.
  *
- * Cases marked `expectRedOnTs6` fail today under TypeScript 6.x because TSF
- * itself injects a deprecated option (`baseUrl`, or `moduleResolution node10`);
- * under 5.x the same cases pass. Each maps to a row in
- * docs/work/typescript-6-compat/findings.md (B3, B4). Phase 2 of the plan
- * flips them to plain `it` once the adapter no longer injects those options.
+ * The suite is the acceptance gate for ADR-0002: the adapter injects only
+ * absolute `paths` entries, never `baseUrl`, and downgrades bundler resolution
+ * to node10 only on TypeScript 5.x. Cases map to rows B3-B5 and B7 in
+ * docs/work/typescript-6-compat/findings.md. The suite must pass on 5.9 and 6.0.
  */
 
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
@@ -24,9 +23,6 @@ import type { PackageInfo, ResolvedTarget } from '../src/types';
 
 const TMP = path.resolve(__dirname, '.ts6-compat-tmp');
 const TS6 = Number(ts.versionMajorMinor.split('.')[0]) >= 6;
-
-/** Under 6.x the case is expected red until Phase 2; under 5.x it must pass. */
-const expectRedOnTs6 = TS6 ? it.fails : it;
 
 const DEPRECATION = /deprecated/i;
 
@@ -171,8 +167,8 @@ describe('ts6-compat: tsc adapter under TypeScript ' + ts.version, () => {
     expect(fs.existsSync(path.join(ws.core.path, 'dist', 'index.d.ts'))).toBe(true);
   });
 
-  // Findings B3 — injected baseUrl, local (preserve) build with workspace paths.
-  expectRedOnTs6('local build of a dependent package injects no deprecated option', () => {
+  // Findings B3 — local (preserve) build with injected workspace paths, no baseUrl.
+  it('local build of a dependent package injects no deprecated option', () => {
     compile(ws.core, localTarget(), ws.root, ws.packages);
     const result = compile(ws.app, localTarget(), ws.root, ws.packages);
 
@@ -183,8 +179,8 @@ describe('ts6-compat: tsc adapter under TypeScript ' + ts.version, () => {
     expect(fs.readFileSync(out, 'utf-8')).toContain('@test/core');
   });
 
-  // Findings B3 — injected baseUrl, npm build as the orchestrator drives it.
-  expectRedOnTs6('npm staging build (orchestrator shape) injects no deprecated option', () => {
+  // Findings B3 — npm build as the orchestrator drives it, no baseUrl.
+  it('npm staging build (orchestrator shape) injects no deprecated option', () => {
     const staging = path.join(ws.root, 'staging');
     compile(ws.core, npmTarget(staging, ws.core), ws.root, ws.packages, staging);
     const result = compile(ws.app, npmTarget(staging, ws.app), ws.root, ws.packages, staging);
@@ -195,8 +191,8 @@ describe('ts6-compat: tsc adapter under TypeScript ' + ts.version, () => {
     expect(fs.existsSync(path.join(staging, 'test', 'app', 'index.d.ts'))).toBe(true);
   });
 
-  // Findings B3 — injected baseUrl, the adapter's own `imports: relative` staging branch.
-  expectRedOnTs6('relative-imports staging build injects no deprecated option', () => {
+  // Findings B3 — the adapter's own `imports: relative` staging branch, no baseUrl.
+  it('relative-imports staging build injects no deprecated option', () => {
     const staging = path.join(ws.root, 'staging');
     compile(ws.core, npmTarget(staging, ws.core), ws.root, ws.packages, staging);
     const relativeTarget: ResolvedTarget = {
@@ -208,10 +204,13 @@ describe('ts6-compat: tsc adapter under TypeScript ' + ts.version, () => {
     expect(deprecations(result.diagnostics)).toEqual([]);
     expect(result.success).toBe(true);
     expect(fs.existsSync(path.join(staging, 'test', 'app', 'index.js'))).toBe(true);
+    const dts = path.join(staging, 'test', 'app', 'index.d.ts');
+    expect(fs.existsSync(dts)).toBe(true);
+    expect(fs.readFileSync(dts, 'utf-8')).toContain('run');
   });
 
-  // Findings B4 — bundler resolution + commonjs target override downgrades to node10.
-  expectRedOnTs6('commonjs target over a bundler-resolution tsconfig injects no node10', () => {
+  // Findings B4 — bundler resolution + commonjs target override: node10 only on 5.x.
+  it('commonjs target over a bundler-resolution tsconfig injects no node10', () => {
     ws = makeWorkspace(BUNDLER_TSCONFIG, BUNDLER_TSCONFIG);
     const result = compile(ws.core, localTarget({ module: 'commonjs' }), ws.root, ws.packages);
 
@@ -220,6 +219,89 @@ describe('ts6-compat: tsc adapter under TypeScript ' + ts.version, () => {
     const out = path.join(ws.core.path, 'dist', 'index.js');
     expect(fs.existsSync(out)).toBe(true);
     expect(fs.readFileSync(out, 'utf-8')).toContain('exports.greet');
+  });
+
+  // Findings B5 — rootDir shapes the widened-rootDir check must keep handling
+  // once entries are absolute: `./src`-prefixed and nested, local and npm-staging.
+  describe('rootDir shapes', () => {
+    function withRootDir(rootDir: string, entry: string): Workspace {
+      const tsconfig: TsconfigJson = {
+        compilerOptions: { ...CLEAN_TSCONFIG.compilerOptions, rootDir },
+        include: [`${entry.split('/')[0]}/**/*`],
+      };
+      const w = makeWorkspace(tsconfig, tsconfig);
+      for (const pkg of [w.core, w.app]) {
+        const from = path.join(pkg.path, 'src', 'index.ts');
+        const to = path.join(pkg.path, entry);
+        fs.mkdirSync(path.dirname(to), { recursive: true });
+        if (from !== to) fs.renameSync(from, to);
+        pkg.entryPoint = entry;
+      }
+      return w;
+    }
+
+    /** Every file under `dir`, relative to it. */
+    function filesUnder(dir: string): string[] {
+      if (!fs.existsSync(dir)) return [];
+      return fs
+        .readdirSync(dir, { recursive: true, encoding: 'utf-8' })
+        .filter((f) => fs.statSync(path.join(dir, f)).isFile())
+        .sort();
+    }
+
+    // The widened-rootDir flatten (`flattenWidenedOutput`) assumes the package
+    // source dir is `src`; with a nested rootDir such as `src/lib` the dependent
+    // package's output lands at `dist/lib/index.js` instead of `dist/index.js`.
+    // Pre-existing, independent of ADR-0002 (the widening decision is unchanged),
+    // and the fourth instance of the pattern open issue 3 tracks. The expectation
+    // below is the correct layout; `it.fails` until issue 3 lands.
+    for (const [label, rootDir, entry, dependentIt] of [
+      ['./src-prefixed rootDir', './src', 'src/index.ts', it],
+      ['nested rootDir', 'src/lib', 'src/lib/index.ts', it.fails],
+    ] as const) {
+      dependentIt(`${label}: local build flattens the dependent package to outDir root`, () => {
+        ws = withRootDir(rootDir, entry);
+        const coreResult = compile(ws.core, localTarget(), ws.root, ws.packages);
+        const result = compile(ws.app, localTarget(), ws.root, ws.packages);
+
+        expect(coreResult.diagnostics).toEqual([]);
+        expect(filesUnder(path.join(ws.core.path, 'dist'))).toEqual(['index.d.ts', 'index.js']);
+        expect(deprecations(result.diagnostics)).toEqual([]);
+        expect(result.success).toBe(true);
+        expect(filesUnder(path.join(ws.app.path, 'dist'))).toEqual(['index.d.ts', 'index.js']);
+        expect(fs.readFileSync(path.join(ws.app.path, 'dist', 'index.js'), 'utf-8')).toContain('@test/core');
+      });
+
+      dependentIt(`${label}: npm staging build flattens the dependent package to its staging root`, () => {
+        ws = withRootDir(rootDir, entry);
+        const staging = path.join(ws.root, 'staging');
+        compile(ws.core, npmTarget(staging, ws.core), ws.root, ws.packages, staging);
+        const result = compile(ws.app, npmTarget(staging, ws.app), ws.root, ws.packages, staging);
+
+        expect(deprecations(result.diagnostics)).toEqual([]);
+        expect(result.success).toBe(true);
+        expect(filesUnder(path.join(staging, 'test', 'core'))).toEqual(['index.d.ts', 'index.js']);
+        expect(filesUnder(path.join(staging, 'test', 'app'))).toEqual(['index.d.ts', 'index.js']);
+        expect(fs.readFileSync(path.join(staging, 'test', 'app', 'index.d.ts'), 'utf-8')).toContain('run');
+      });
+    }
+  });
+
+  // ADR-0002 Decision 2 — user-authored paths (no baseUrl) are honored, not overridden.
+  it('honors user-declared paths without baseUrl and injects nothing for them', () => {
+    ws = makeWorkspace({
+      compilerOptions: {
+        ...CLEAN_TSCONFIG.compilerOptions,
+        paths: { '@test/core': ['../core/src/index.ts'] },
+      },
+      include: ['src/**/*'],
+    });
+    compile(ws.core, localTarget(), ws.root, ws.packages);
+    const result = compile(ws.app, localTarget(), ws.root, ws.packages);
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.success).toBe(true);
+    expect(fs.existsSync(path.join(ws.app.path, 'dist', 'index.js'))).toBe(true);
   });
 
   // Findings B6 — a user's own deprecated option must be surfaced, never swallowed.

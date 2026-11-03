@@ -13,7 +13,7 @@
  * - Automatic workspace package path injection
  * - rootDir widening for cross-package imports
  * - Output flattening when rootDir is widened
- * - Module resolution compatibility fixes
+ * - Module resolution compatibility fixes (no baseUrl/node10 injection — ADR-0002)
  *
  * @example
  * ```typescript
@@ -78,35 +78,41 @@ export function compile(
     composite: false,
   };
 
-  // When overriding module, ensure moduleResolution is compatible.
-  // "bundler" resolution only works with module=preserve or es2015+.
-  // If we're forcing commonjs, switch to node resolution.
+  // When overriding module to CommonJS over a "bundler"-resolution tsconfig:
+  // TypeScript 5.x rejects that pair (TS5095), so it is downgraded to node10 there.
+  // TypeScript 6.0 accepts bundler + commonjs and deprecates node10, so the
+  // downgrade is skipped from 6.0 on (ADR-0002 Decision 4). This is the only
+  // TypeScript-version branch in TSF; it goes away with the 5.x floor.
   if (moduleKind !== undefined && parsedConfig.options.moduleResolution !== undefined) {
     const isBundlerResolution =
       parsedConfig.options.moduleResolution === ts.ModuleResolutionKind.Bundler;
     const isCommonJS = moduleKind === ts.ModuleKind.CommonJS;
 
-    if (isBundlerResolution && isCommonJS) {
+    if (isBundlerResolution && isCommonJS && !bundlerAllowsCommonJS()) {
       overrides.moduleResolution = ts.ModuleResolutionKind.Node10;
       logger.verbose(
-        `Switched moduleResolution from bundler to node (incompatible with commonjs)`,
+        `Switched moduleResolution from bundler to node10 (TypeScript ${ts.version} rejects bundler with commonjs)`,
         context,
       );
     }
   }
 
-  // Ensure workspace packages are resolvable during compilation.
-  // For npm/relative builds with a staging dir, inject paths pointing at the staging
-  // directory where upstream deps have already been compiled. This lets tsc find type
-  // declarations without requiring symlinks in the source workspace. tsc still emits
-  // bare specifiers that the post-compile import transformer rewrites to relative paths.
+  // Ensure workspace packages are resolvable during compilation by injecting
+  // `paths` entries. Every injected entry is ABSOLUTE and no `baseUrl` is ever
+  // injected (ADR-0002 Decisions 1-2): without `baseUrl`, TypeScript resolves
+  // relative entries against an internal `pathsBasePath` that only exists when the
+  // user's own tsconfig declared `paths`, and otherwise against process.cwd().
+  // An absolute substitution is used as-is, whatever the base. The user's own
+  // `baseUrl`/`paths`, if any, are left exactly as written.
   const isRelativeBuild = target.config.imports === 'relative';
+  const tsconfigDir = path.dirname(pkg.tsconfig);
   const currentPaths: ts.MapLike<string[]> = { ...(parsedConfig.options.paths || {}) };
 
-  // For npm/relative builds with a staging dir, inject paths pointing at the staging
-  // directory where upstream deps have already been compiled.
+  // For npm/relative builds with a staging dir, point at the staging directory where
+  // upstream deps have already been compiled. This lets tsc find type declarations
+  // without requiring symlinks in the source workspace. tsc still emits bare
+  // specifiers that the post-compile import transformer rewrites to relative paths.
   if (workspacePackages && isRelativeBuild && npmStagingDir) {
-    let needsBaseUrl = false;
     const transitiveDeps = getTransitiveDeps(pkg.name, workspacePackages);
 
     for (const [depName, depPkg] of workspacePackages) {
@@ -116,24 +122,17 @@ export function compile(
       const depStagingDir = path.join(npmStagingDir, depName.replace(/^@/, ''));
       // Point at the staging dir's .d.ts output so tsc can resolve types.
       // Override any existing source-pointing paths to avoid rootDir conflicts.
-      // Use paths relative to baseUrl (pkg.path) since tsc resolves paths relative to baseUrl.
       const entryBase = getOutputEntryPoint(depPkg);
       const dtsEntry = entryBase.replace(/\.js$/, '.d.ts');
-      const relEntry = path.relative(pkg.path, path.join(depStagingDir, dtsEntry));
+      const absEntry = path.resolve(depStagingDir, dtsEntry);
 
-      currentPaths[depName] = [relEntry];
-      currentPaths[depName + '/*'] = [path.relative(pkg.path, path.join(depStagingDir, '*'))];
-      needsBaseUrl = true;
-      logger.verbose(`Added staging path: ${depName} → ${relEntry}`, context);
+      currentPaths[depName] = [absEntry];
+      currentPaths[depName + '/*'] = [path.resolve(depStagingDir, '*')];
+      logger.verbose(`Added staging path: ${depName} → ${absEntry}`, context);
     }
 
     overrides.paths = currentPaths;
-    if (needsBaseUrl && !parsedConfig.options.baseUrl) {
-      overrides.baseUrl = pkg.path;
-    }
   } else if (workspacePackages && !isRelativeBuild) {
-    let needsBaseUrl = false;
-
     // Include transitive deps: tsc follows source paths and needs to resolve
     // imports in dependency source files too (e.g. plugins -> world-model -> if-domain)
     const transitiveDeps = getTransitiveDeps(pkg.name, workspacePackages);
@@ -144,20 +143,16 @@ export function compile(
 
       // Add paths entry pointing at source if not already present
       if (!currentPaths[depName]) {
-        const relEntry = path.relative(pkg.path, path.join(depPkg.path, depPkg.entryPoint));
-        currentPaths[depName] = [relEntry];
+        const absEntry = path.resolve(depPkg.path, depPkg.entryPoint);
+        currentPaths[depName] = [absEntry];
         currentPaths[depName + '/*'] = [
-          path.relative(pkg.path, path.join(depPkg.path, path.dirname(depPkg.entryPoint), '*')),
+          path.resolve(depPkg.path, path.dirname(depPkg.entryPoint), '*'),
         ];
-        needsBaseUrl = true;
-        logger.verbose(`Added workspace path: ${depName} → ${relEntry}`, context);
+        logger.verbose(`Added workspace path: ${depName} → ${absEntry}`, context);
       }
     }
 
     overrides.paths = currentPaths;
-    if (needsBaseUrl && !parsedConfig.options.baseUrl) {
-      overrides.baseUrl = pkg.path;
-    }
   }
 
   // Widen rootDir if any path entry resolves outside the package's rootDir.
@@ -165,17 +160,20 @@ export function compile(
   // Even for npm builds, if tsconfig has paths that resolve outside rootDir, tsc fails.
   if (Object.keys(currentPaths).length > 0) {
     const effectiveRootDir = parsedConfig.options.rootDir
-      ? path.resolve(path.dirname(pkg.tsconfig), parsedConfig.options.rootDir)
-      : path.dirname(pkg.tsconfig);
-    const baseUrl = parsedConfig.options.baseUrl
-      ? path.resolve(path.dirname(pkg.tsconfig), parsedConfig.options.baseUrl)
-      : pkg.path;
+      ? path.resolve(tsconfigDir, parsedConfig.options.rootDir)
+      : tsconfigDir;
+    // Relative entries (only the user's own can be relative) resolve against the
+    // user's baseUrl if declared, else the tsconfig directory; absolute entries
+    // resolve to themselves. This mirrors TypeScript's own resolution.
+    const pathsBase = parsedConfig.options.baseUrl
+      ? path.resolve(tsconfigDir, parsedConfig.options.baseUrl)
+      : tsconfigDir;
 
     let needsWiderRoot = false;
     for (const entries of Object.values(currentPaths)) {
       for (const entry of entries) {
         if (entry.includes('*')) continue;
-        const resolved = path.resolve(baseUrl, entry);
+        const resolved = path.resolve(pathsBase, entry);
         if (!resolved.startsWith(effectiveRootDir + path.sep) && resolved !== effectiveRootDir) {
           needsWiderRoot = true;
           break;
@@ -186,9 +184,6 @@ export function compile(
 
     if (needsWiderRoot) {
       overrides.rootDir = rootDir; // workspace root
-      if (!parsedConfig.options.baseUrl) {
-        overrides.baseUrl = pkg.path;
-      }
       logger.verbose(`Widened rootDir to workspace root for cross-package resolution`, context);
     }
   }
@@ -247,6 +242,15 @@ export function compile(
 
   const success = !emitResult.emitSkipped && diagnosticMessages.length === 0;
   return { success, diagnostics: diagnosticMessages, outputFiles };
+}
+
+/**
+ * Whether the installed TypeScript accepts `moduleResolution: bundler` together
+ * with `module: commonjs`. True from TypeScript 6.0 (which also deprecates the
+ * node10 fallback TSF used before); false on 5.x, where the pair is TS5095.
+ */
+function bundlerAllowsCommonJS(): boolean {
+  return Number(ts.versionMajorMinor.split('.')[0]) >= 6;
 }
 
 function resolveModuleKind(module?: string): ts.ModuleKind | undefined {
