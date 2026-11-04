@@ -92,4 +92,4 @@
 - **Exit state**: Release live on npm.
 - **Demonstration**: Run the npm registry version query for the package and see the new version.
 - **Demonstrated**: 
-- **Status**: PENDING
+- **Status**: CURRENT (since 2026-11-03)
