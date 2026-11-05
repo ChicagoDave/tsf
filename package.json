@@ -27,6 +27,10 @@
     "esm"
   ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ChicagoDave/tsf.git"
+  },
   "publishConfig": {
     "access": "public"
   },

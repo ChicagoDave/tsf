@@ -1,0 +1,81 @@
+# Publish @davidcornelson/tsf to npm.
+#
+# Purpose: build, test, and publish this package through npm trusted
+#   publishing (OIDC), so a release needs no NPM_TOKEN secret and no 2FA link.
+# Interface (how a release is triggered):
+#   - Push a tag `vX.Y.Z` that matches package.json's version: real publish.
+#   - Run manually from the Actions tab: dry run by default; untick `dry_run`
+#     to publish for real.
+# Owner context: TSF release process. Depends on a trusted publisher registered
+#   on npmjs.com for this package (repository ChicagoDave/tsf, workflow
+#   filename `publish.yml`). Renaming this file breaks that registration.
+
+name: Publish to npm
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run: build, test and pack, but do not publish'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  id-token: write # OIDC token that npm exchanges for publish credentials
+
+concurrency:
+  group: npm-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      # Trusted publishing needs npm >= 11.5.1, which Node 24 bundles.
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          registry-url: 'https://registry.npmjs.org'
+          cache: pnpm
+
+      # Invariant: a tag-triggered release publishes exactly the tagged version.
+      - name: Verify tag matches package.json version
+        if: github.event_name == 'push'
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          expected="v$(node -p "require('./package.json').version")"
+          if [ "$TAG" != "$expected" ]; then
+            echo "::error::Tag $TAG does not match package.json version $expected"
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Test
+        run: pnpm exec vitest run
+
+      - name: Publish (dry run)
+        if: github.event_name == 'workflow_dispatch' && inputs.dry_run
+        run: npm publish --dry-run
+
+      - name: Publish
+        if: github.event_name == 'push' || !inputs.dry_run
+        run: npm publish
