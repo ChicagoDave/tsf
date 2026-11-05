@@ -38,7 +38,8 @@ import { loadEsbuild } from '../utils/esbuild-loader';
  * @param pkg - Package to compile
  * @param target - Build target configuration
  * @param rootDir - Workspace root directory
- * @param workspacePackages - Workspace packages (marked as external)
+ * @param workspacePackages - Accepted for the shared compiler signature; not used, because
+ *   esbuild's `external` only applies to a bundled build and this adapter does not bundle
  * @returns Compilation result
  */
 export function compileWithEsbuild(
@@ -65,15 +66,9 @@ export function compileWithEsbuild(
   );
   const entryPoints = parsedConfig.fileNames;
 
-  // Workspace package names to mark as external
-  const external: string[] = [...(target.config.external || [])];
-  if (workspacePackages) {
-    for (const depName of workspacePackages.keys()) {
-      if (depName !== pkg.name) {
-        external.push(depName);
-      }
-    }
-  }
+  // No `external` here: esbuild only accepts it together with `bundle: true`, and this adapter
+  // transpiles each file on its own. Workspace imports are left as written, so nothing needs to
+  // be marked external.
 
   logger.verbose(`esbuild: ${entryPoints.length} files, format=${format}`, context);
 
@@ -84,7 +79,6 @@ export function compileWithEsbuild(
       format,
       platform: 'node',
       sourcemap: target.config.sourceMap ?? false,
-      external,
       logLevel: 'silent',
       // Transpile only — each file individually, no bundling
       bundle: false,
