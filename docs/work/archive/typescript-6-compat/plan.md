@@ -1,7 +1,7 @@
 # Session Plan: TypeScript 6.0 compatibility for TSF
 
 **Created**: 2026-11-02
-**Plan Status**: ACTIVE
+**Plan Status**: DONE
 **Overall scope**: Make TSF build and run correctly against TypeScript 6.0.x (6.0.3 is current on npm) while still working on 5.x. Replace the `baseUrl` and `moduleResolution: node10` injection in the tsc adapter with 6.0-safe equivalents (`paths` relative to the tsconfig, `bundler` resolution), pin down the 6.0 default changes TSF relies on implicitly, and prove it with a real downstream consumer. TypeScript 7.x (Go-native, no JS compiler API) is OUT of scope; a 7.1 spike behind the compiler-adapter interface is a later, separate plan.
 **Bounded contexts touched**: N/A — infrastructure/tooling (tsc compiler adapter, import/declaration transforms, TSF's own tsconfig and dependency range).
 **Key domain language**: N/A — plain technical framing (compiler adapter, workspace path mapping, staging directory, moduleResolution, rootDir).

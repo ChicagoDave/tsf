@@ -9,7 +9,7 @@
 
 TSF's output model assumes a package's entry point lands at the root of its output directory: `src/index.ts` becomes `dist/index.js`, never `dist/src/index.js`. Entry-point stripping, package.json sync for npm staging, declaration placement, and import rewriting all compute output paths from the package's `rootDir`.
 
-When a user tsconfig omits `rootDir`, TypeScript 5.x inferred it as the longest common directory of the input files, which for a conventional package is `src`. TypeScript 6.0 changed that default to the directory containing tsconfig.json (findings D3 in `docs/work/typescript-6-compat/findings.md`). Under 6.0 the same tsconfig therefore emits to `dist/src/`, and every TSF path computation that assumed the 5.x layout is wrong. Before Phase 3, the three `getOutputEntryPoint()` copies also fell back to a hardcoded `'src'` when `rootDir` was absent, which matched 5.x inference only by convention.
+When a user tsconfig omits `rootDir`, TypeScript 5.x inferred it as the longest common directory of the input files, which for a conventional package is `src`. TypeScript 6.0 changed that default to the directory containing tsconfig.json (findings D3 in `docs/work/archive/typescript-6-compat/findings.md`). Under 6.0 the same tsconfig therefore emits to `dist/src/`, and every TSF path computation that assumed the 5.x layout is wrong. Before Phase 3, the three `getOutputEntryPoint()` copies also fell back to a hardcoded `'src'` when `rootDir` was absent, which matched 5.x inference only by convention.
 
 TSF supports TypeScript `>=5.7 <7` (plan Phase 4), so both defaults are live at once. Two options were available: adopt the 6.0 default and teach every path computation to branch on the TypeScript version, or decide the value in TSF so the compiler's default never applies. ADR-0002 already established that nothing in TSF beyond the bounded node10 gate should branch on the TypeScript version.
 
@@ -32,4 +32,4 @@ TSF supports TypeScript `>=5.7 <7` (plan Phase 4), so both defaults are live at 
 
 ## Session
 
-Decision made and implemented in session 9ca055 (2026-11-03), Phase 3 of `docs/work/typescript-6-compat/plan.md` (commit 8c3836b), and tracked as issue 8 because no confirmation was available then. Confirmed ADR-worthy by David and written in session 0a69e6 (2026-11-04).
+Decision made and implemented in session 9ca055 (2026-11-03), Phase 3 of `docs/work/archive/typescript-6-compat/plan.md` (commit 8c3836b), and tracked as issue 8 because no confirmation was available then. Confirmed ADR-worthy by David and written in session 0a69e6 (2026-11-04).

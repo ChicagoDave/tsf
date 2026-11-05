@@ -9,7 +9,7 @@
 
 TSF's tsc adapter (`src/compilers/tsc.ts`) makes workspace packages resolvable during a per-package compile by injecting `paths` entries into the compiler options: source-pointing entries for local builds, staging-dir entries for npm builds. Since the adapter was written it has also injected `baseUrl = pkg.path`, because the entries were written relative to the package directory and 5.x resolved `paths` against `baseUrl`. Separately, when a user tsconfig declares `moduleResolution: bundler` and a target overrides `module` to CommonJS, the adapter downgrades `moduleResolution` to `node10`, because TypeScript 5.x rejected bundler resolution with CommonJS output (TS5095).
 
-TypeScript 6.0 deprecates both `baseUrl` and `moduleResolution: node10` as hard errors, silenceable only by `ignoreDeprecations: "6.0"`, and TypeScript 7 removes them. Phase 1 of `docs/work/typescript-6-compat/plan.md` (findings B3, B4, B5 in `findings.md`) reproduced every injection site failing under 6.0.3 with a 6.0-clean user tsconfig. 6.0 also allows bundler resolution with CommonJS output, which removes the reason for the downgrade.
+TypeScript 6.0 deprecates both `baseUrl` and `moduleResolution: node10` as hard errors, silenceable only by `ignoreDeprecations: "6.0"`, and TypeScript 7 removes them. Phase 1 of `docs/work/archive/typescript-6-compat/plan.md` (findings B3, B4, B5 in `findings.md`) reproduced every injection site failing under 6.0.3 with a 6.0-clean user tsconfig. 6.0 also allows bundler resolution with CommonJS output, which removes the reason for the downgrade.
 
 Two facts about the compiler API constrain the replacement:
 
@@ -36,4 +36,4 @@ ADR-0001 fixes the BUILD/EDITOR split: the user's tsconfig on disk is never modi
 
 ## Session
 
-Written in session 9ca055 (2026-11-03) as the first deliverable of Phase 2 of `docs/work/typescript-6-compat/plan.md`, following the Phase 1 findings in `docs/work/typescript-6-compat/findings.md`.
+Written in session 9ca055 (2026-11-03) as the first deliverable of Phase 2 of `docs/work/archive/typescript-6-compat/plan.md`, following the Phase 1 findings in `docs/work/archive/typescript-6-compat/findings.md`.

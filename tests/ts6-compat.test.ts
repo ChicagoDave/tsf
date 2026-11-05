@@ -12,7 +12,7 @@
  * absolute `paths` entries, never `baseUrl`, and downgrades bundler resolution
  * to node10 only on TypeScript 5.x. It also covers the 6.0 default changes TSF
  * pins or warns about (rootDir, module). Cases map to rows B3-B5, B7 and D1-D3
- * in docs/work/typescript-6-compat/findings.md. The suite must pass on 5.9 and 6.0.
+ * in docs/work/archive/typescript-6-compat/findings.md. The suite must pass on 5.9 and 6.0.
  */
 
 import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
