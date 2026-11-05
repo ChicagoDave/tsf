@@ -91,5 +91,5 @@
 - **Deliverable**: David runs `npm publish`, then bumps Sharpee's tsf dependency and, if desired, its TypeScript range.
 - **Exit state**: Release live on npm.
 - **Demonstration**: Run the npm registry version query for the package and see the new version.
-- **Demonstrated**: 
-- **Status**: CURRENT (since 2026-11-03)
+- **Demonstrated**: [verified] 2026-11-04 — `npm view @davidcornelson/tsf@1.1.0 version` returns `1.1.0` and `npm view @davidcornelson/tsf dist-tags` returns `latest: 1.1.0` (was 1.0.4 before the release). Published by the tag-triggered workflow rather than a manual `npm publish`: annotated tag `v1.1.0` on acb7fc0 pushed by the session at David's instruction after he registered the npm trusted publisher; GitHub Actions run 41942976205 (`.github/workflows/publish.yml`) ended green with `+ @davidcornelson/tsf@1.1.0` and a signed provenance statement (sigstore logIndex 3692237215). The Sharpee dependency bump named in the Deliverable is David's and was not done here.
+- **Status**: DONE
